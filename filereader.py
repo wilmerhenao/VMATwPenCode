@@ -7,7 +7,7 @@ import scipy.io as sio
 # voxels
 
 oldfolder = os.getcwd()
-os.chdir('/run/media/wilmer/DSOL_BU/Troy_BU/Data/DataProject/HN')
+os.chdir('/home/wilmer/Documents/Troy_BU/Data/DataProject/HN/')
 allFiles = glob.glob("*VOILIST.mat")
 allNames = sorted(allFiles) #Make sure it's sorted because it was not.
 numStructs = len(allFiles)
@@ -22,8 +22,8 @@ bigZ = np.zeros(numVoxels)
 
 # Vorg is a list of the structure voxels in big voxel space
 for s in range(0, numStructs):
-    Vorg.append(sio.loadmat(allNames[s])['v'])
-    bigZ[Vorg[s]-1] = 1.0
+    Vorg.append(sio.loadmat(allNames[s])['v']-1)
+    bigZ[Vorg[s]] = 1.0
 
 # nVox is "small voxel space", with only the voxels that have
 # structures assigned (basically non-air/couch voxels)
@@ -54,28 +54,27 @@ priority = [7, 24, 25, 23, 22, 21, 20, 16, 15, 14, 13, 12, 10, 11, 9,
  4, 3, 1, 2, 17, 18, 19, 5, 6, 8]
 
 for i in range(0, numStructs):
-    s = priority[i]
+    s = priority[i] - 1
     # generates mask values (the integer that we decompose to get structure
     # assignment). for single it just overrides with the more important
     # structure
-    maskValueFull[originalVoxels[Vorg[s]]] =
-    maskValueFull(originalVoxels(Vorg{s}))+2^(s-1)
-    maskValueSingle(originalVoxels(Vorg{s})) = 2^(s-1);
+    maskValueFull[originalVoxels[Vorg[s]].astype(int)] = maskValueFull[originalVoxels[Vorg[s]].astype(int)]+2**(s-1)
+    maskValueSingle[originalVoxels[Vorg[s]].astype(int)] = 2**(s-1);
 
-os.chdir('/run/media/wilmer/DSOL_BU/Troy_BU/Data/DataProject/HN/Dij')
+os.chdir('/home/wilmer/Documents/Troy_BU/Data/DataProject/HN/Dij')
 gastart = 0 ;
 gaend = 356;
 gastep = 60;
-castart = -90;
-caend = 90;
-castep = 15;
+castart = 0;
+caend = 0;
+castep = 0;
 ga=[];
 ca=[];
 
 for g in range(gastart, gaend, gastep):
-    for c in range(castart, caend, castep):
-        fname = 'Gantry' + str(g) + '_Couch' + str(c) + '_D.mat'
-        if os.path.isfile(fname):
-            ga.append(g)
-            ca.append(c)
+    fname = 'Gantry' + str(g) + '_Couch' + str(0) + '_D.mat'
+    if os.path.isfile(fname):
+        ga.append(g)
+        ca.append(0)
 
+        

@@ -133,3 +133,4 @@ K = range(0, 360, 2)
 # for each aperture not in CCALIG do the pricing problem subroutine
 for i in [x for x in K if x not in Ccalig]:
     print(i)
+

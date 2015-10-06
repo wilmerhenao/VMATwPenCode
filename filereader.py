@@ -1,4 +1,6 @@
 
+#!/usr/bin/python
+
 import glob, os
 import numpy as np
 import scipy.io as sio
@@ -14,6 +16,7 @@ from scipy import sparse
 readfolder = '/home/wilmer/Documents/Troy_BU/Data/DataProject/HN/'
 readfolderD = '/home/wilmer/Documents/Troy_BU/Data/DataProject/HN/Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
+degreesep = 2 # How many degrees in between separating neighbor beams.
 
 oldfolder = os.getcwd()
 os.chdir(readfolder)
@@ -92,7 +95,7 @@ for g in range(gastart, gaend, gastep):
 # small voxel space and writes it out to a binary file to be used in the
 # optimization
 
-# nBPB is num beamlets per beam
+# nBPB is the  number of beamlets per beam
 nBPB = np.zeros(len(ga))
 # nDIJSPB is the number of nonzeros in the Dmatrix for each beam
 nDIJSPB = np.zeros(len(ga))
@@ -124,13 +127,24 @@ rowCumSum = []
 
 # Column generation based greedy heuristic for Master Problem
 
+# Define aperture class.
+
+class aperture:
+    m = 
+    l = 0
+    r = N
+    
+
 # Ccalig contains the list of the apertures that enter as nonzero. I start with
 # an empty list.
 Ccalig = []
 zbar = 0
-K = range(0, 360, 2)
+K = range(0, 360, degreesep)
+
+
 
 # for each aperture not in CCALIG do the pricing problem subroutine
 for i in [x for x in K if x not in Ccalig]:
     print(i)
 
+def PPsubroutine(Ccalig, Ak):

@@ -8,26 +8,40 @@ from scipy import sparse
 
 # First of all make sure that I can read the data
 
-
 # In the data directory with the *VOILIST.mat files, this opens up
 # each structure file and reads in the structure names and sizes in
 # voxels
 
 readfolder = '/home/wilmer/Documents/Troy_BU/Data/DataProject/HN/'
-readfolderD = '/home/wilmer/Documents/Troy_BU/Data/DataProject/HN/Dij/'
+readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
 degreesep = 2 # How many degrees in between separating neighbor beams.
 
+# Function definitions
+####################################################################
+def readctvoxelinfo():
+    # This function returns a dictionary with the dimension in voxel
+    # units for x,y,z axis
+    
+    lines = [line.rstrip('\n') for line in open(readfolder + 'CTVOXEL_INFO.txt')]
+    tempocoor = []
+    for i in range(0,3):
+        tempocoor.append(int(lines[i].rsplit(None, 1)[-1]))
+    coordims = dict(x=tempocoor[0],y=tempocoor[1],z=tempocoor[2])
+    return(coordims)
+####################################################################
 oldfolder = os.getcwd()
 os.chdir(readfolder)
 allFiles = glob.glob("*VOILIST.mat")
+allBeamInfos = glob.glob("*Couch0_BEAMINFO.mat")
 allNames = sorted(allFiles) #Make sure it's sorted because it was not.
+allBeamInfoNames = sorted(allBeamInfos)
 numStructs = len(allFiles)
-print(numStructs)
 
 # This is "big voxel space" where some voxels may receive no dose or
-# have no structure assigned # Wilmer. Find where this comes from
-numVoxels = 1715200
+# have no structure assigned
+vdims = readctvoxelinfo()
+numVoxels = vdims['x'] * vdims['y'] * vdims['z']
 
 Vorg = []
 bigZ = np.zeros(numVoxels)
@@ -47,8 +61,10 @@ voxelAssignment = np.zeros(nVox.astype(np.int64))
 counter = 0
 for i in range(0, numVoxels):
     if(bigZ[i] > 0):
+        # If big space voxel is nonzero, save to small vxl space
         voxelAssignment[counter] = i
         counter+=1
+print('mapping from small voxel space to big voxel space done')
 
 # originalVoxels is the mapping from big voxel space to small voxel
 # space
@@ -58,12 +74,11 @@ for i in range(0,nVox.astype(np.int64)):
 
 maskValueFull = np.zeros(nVox.astype(np.int64))
 maskValueSingle = np.zeros(nVox.astype(np.int64))
-
 # this priority is the order of priority for assigning a single structure per
 # voxel (from least to most important)
 
 priority = [7, 24, 25, 23, 22, 21, 20, 16, 15, 14, 13, 12, 10, 11, 9,
- 4, 3, 1, 2, 17, 18, 19, 5, 6, 8]
+4, 3, 1, 2, 17, 18, 19, 5, 6, 8]
 
 for i in range(0, numStructs):
     s = priority[i] - 1
@@ -73,16 +88,19 @@ for i in range(0, numStructs):
     maskValueFull[originalVoxels[Vorg[s]].astype(int)] = maskValueFull[originalVoxels[Vorg[s]].astype(int)]+2**(s-1)
     maskValueSingle[originalVoxels[Vorg[s]].astype(int)] = 2**(s-1);
 
-os.chdir('/home/wilmer/Documents/Troy_BU/Data/DataProject/HN/Dij')
+print('Masking has been calculated')
+
+
 gastart = 0 ;
 gaend = 356;
-gastep = 60;
+gastep = degreesep;
 castart = 0;
 caend = 0;
 castep = 0;
 ga=[];
 ca=[];
 
+os.chdir(readfolderD)
 for g in range(gastart, gaend, gastep):
     fname = 'Gantry' + str(g) + '_Couch' + str(0) + '_D.mat'
     if os.path.isfile(fname):
@@ -90,7 +108,7 @@ for g in range(gastart, gaend, gastep):
         ca.append(0)
 
 # build new sparse matrices
-        
+
 # This code translates the sparse dose matrices from big voxel space to
 # small voxel space and writes it out to a binary file to be used in the
 # optimization
@@ -111,40 +129,40 @@ for i in range(0, len(ga)):
     nBPB[i] = max(j)
     nDIJSPB[i] = len(d)
     newb = originalVoxels[b]
-    
-    # write out voxel sorted binary file
-    [jt,bt,dt] = sparse.find(D.transpose())
-    newbt = originalVoxels[bt]
-    
-nBPB = nBPB.astype(np.int64)
-nDIJBPB = nDIJBPB.astype(np.int64)
-    
-beamlog = np.ones(len(ga))
-nBeams = len(ga)
-beamlog(nBeams)
-nBeamlets = np.zeros(nBeams)
-rowCumSum = []
 
-# Column generation based greedy heuristic for Master Problem
+            # write out voxel sorted binary file
+            [jt,bt,dt] = sparse.find(D.transpose())
+            newbt = originalVoxels[bt]
 
-# Define aperture class.
+            nBPB = nBPB.astype(np.int64)
+            nDIJBPB = nDIJBPB.astype(np.int64)
 
-class aperture:
-    m = 
-    l = 0
-    r = N
-    
+            beamlog = np.ones(len(ga))
+            nBeams = len(ga)
+            beamlog(nBeams)
+            nBeamlets = np.zeros(nBeams)
+            rowCumSum = []
 
-# Ccalig contains the list of the apertures that enter as nonzero. I start with
-# an empty list.
-Ccalig = []
-zbar = 0
-K = range(0, 360, degreesep)
+            # Column generation based greedy heuristic for Master Problem
+
+            # Define aperture class.
+
+            class aperture:
+                m = 
+                l = 0
+                r = N
 
 
+                # Ccalig contains the list of the apertures that enter as nonzero. I start with
+                # an empty list.
+                Ccalig = []
+                zbar = 0
+                K = range(0, 360, degreesep)
 
-# for each aperture not in CCALIG do the pricing problem subroutine
-for i in [x for x in K if x not in Ccalig]:
-    print(i)
 
-def PPsubroutine(Ccalig, Ak):
+
+                # for each aperture not in CCALIG do the pricing problem subroutine
+                for i in [x for x in K if x not in Ccalig]:
+                    print(i)
+
+                    def PPsubroutine(Ccalig, Ak):

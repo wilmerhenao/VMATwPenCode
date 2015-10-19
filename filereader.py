@@ -17,6 +17,7 @@ readfolder = '/home/wilmer/Documents/Troy_BU/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
 degreesep = 60 # How many degrees in between separating neighbor beams.
+objfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/objectives/obj1.txt'
 
 # mimics an eigentriplet from Troy's code in eigentemplate.h
 class triplet:
@@ -235,4 +236,6 @@ for i in range(0, data.numbeams):
 print('Finished reading D matrices')
 
 ## Read in the objective file:
-    
+lines = [myline.split('\t') for myline in [line.rstrip('\n') for line in open(objfile)]]
+## Collapse the above expression to a flat list
+data.objectiveInputFiles = [item for sublist in lines for item in sublist]

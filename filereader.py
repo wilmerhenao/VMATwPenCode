@@ -61,6 +61,7 @@ class imrt_class:
     # default constructor
     def __init__(self):
         self.numX = 0
+
 ########## END OF CLASS DECLARATION ###########################################
 data = imrt_class()
 
@@ -148,6 +149,7 @@ ca=[];
 
 os.chdir(readfolderD)
 for g in range(gastart, gaend, gastep):
+    print(g)
     fname = 'Gantry' + str(g) + '_Couch' + str(0) + '_D.mat'
     bletfname = readfolder + 'Gantry' + str(g) + '_Couch' + str(0) + '_BEAMINFO.mat'
     if os.path.isfile(fname) and os.path.isfile(bletfname):
@@ -156,7 +158,7 @@ for g in range(gastart, gaend, gastep):
 
 print('There is enough data for ' + str(len(ga)) + ' different coplanar beam angles\n')
 
-]# build new sparse matrices
+# build new sparse matrices
 
 # This code translates the sparse dose matrices from big voxel space to
 # small voxel space and writes it out to a binary file to be used in the
@@ -167,8 +169,53 @@ nBPB = np.zeros(len(ga))
 # nDIJSPB is the number of nonzeros in the Dmatrix for each beam
 nDIJSPB = np.zeros(len(ga))
 
+###############################################################################
+## Beginning of Troy's cpp code (interpreted, not copied)
 
+## This comes from first two lines in doseInputs txt file (troy's version)
+data.numvoxels = nVox
+data.numbeams = len(ga)
+## Allocate memory
+data.beamNumPerBeam = np.empty(data.numbeams, dtype=int)
+data.beamletsPerBeam = np.empty(data.numbeams, dtype=int)
+data.dijsPerBeam = np.empty(data.numbeams, dtype=int)
+beamletCounter = np.zeros(data.numbeams + 1)
 
+for i in range(0, data.numbeams):
+    fname = 'Gantry' + str(ga[i]) + '_Couch' + str(0) + '_D.mat'
+    bletfname = readfolder + 'Gantry' + str(ga[i]) + '_Couch' + str(0) + '_BEAMINFO.mat'
+    # extract voxel, beamlet indices and dose values
+    D = sio.loadmat(fname)['D']
+    [b,j,d] = sparse.find(D)
+    # Get beamlet information
+    binfoholder = sio.loadmat(bletfname)
+
+    # Get dose information as in the cpp file
+    data.beamNumPerBeam[i] = 10 * int(i) # WILMER. Find out why!!!
+    data.beamletsPerBeam[i] = int(binfoholder['numBeamlets'])
+    data.dijsPerBeam[i] =  int(binfoholder['numberNonZerosDij'])
+    beamletCounter[i+1] = beamletCounter[i] + data.beamletsPerBeam[i]
+    
+    nBPB[i] = max(j)
+    nDIJSPB[i] = len(d)
+    newb = originalVoxels[b]
+
+    # write out voxel sorted binary file
+    [jt,bt,dt] = sparse.find(D.transpose())
+    newbt = originalVoxels[bt]
+
+    #nBPB = nBPB.astype(np.int64)
+    #nDIJBPB = nDIJBPB.astype(np.int64)
+    beamlog = np.ones(len(ga))
+    nBeams = len(ga)
+    nBeamlets = np.zeros(nBeams)
+    rowCumSum = []
+
+# Generating dose matrix dimensions
+data.numX = sum(data.beamletsPerBeam)
+data.totaldijs = sum(data.dijsPerBeam)
+
+    
 ### THIS PART IS FOR LATER SINCE IT HANDLES THE VMAT SCENARIO
 print('Starting the process of reading')
 for i in range(0, len(ga)):

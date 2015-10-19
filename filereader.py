@@ -2,6 +2,7 @@
 #!/usr/bin/python
 
 import glob, os
+import pyipopt
 import numpy as np
 import scipy.io as sio
 from scipy import sparse
@@ -15,7 +16,53 @@ from scipy import sparse
 readfolder = '/home/wilmer/Documents/Troy_BU/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
-degreesep = 2 # How many degrees in between separating neighbor beams.
+degreesep = 60 # How many degrees in between separating neighbor beams.
+
+class imrt_class:
+    # constants particular to the problem
+    numX = 0 # num beamlets
+    numvoxels = 0 #num voxels (small voxel space)
+    numstructs = 0 # num of structures/regions
+    numoars = 0 # num of organs at risk
+    numtargets = 0 # num of targets
+    numbeams = 0 # num of beams
+    totaldijs = 0 # num of nonzeros in Dij matrix
+
+    # vectors
+    beamNumPerBeam = [] # beam index per beam (for reading in individual beams)
+    beamletsPerBeam = [] # number of beamlets per beam 
+    dijsPerBeam = [] # number of nonzeroes in Dij per beam
+    maskValue = [] #non-overlapping mask value per voxel
+    fullMaskValue = [] # complete mask value per voxel
+    regionIndices = [] # index values of structures in region list (should be 0,1,etc)
+    targets = [] # region indices of structures (from region vector)
+    oars = [] # region indices of oars
+    regions = [] # vector of regions (holds structure information)
+    objectiveInputFiles = [] # vector of data input files for objectives
+    constraintInputFiles = [] # vector of data input files for constraints
+    algOptions = [] # vector of data input for algorithm options
+
+    # big D matrix
+    Dmat = [] # sparse Dij matrix
+
+    # varios folders
+    outputDirectory = outputfolder # given by the user in the first lines of *.py
+    dataDirectory = readfolder
+
+    # dose variables
+    currentDose = [] # dose variable
+    currentIntensities = []
+
+    # data class function
+    def calcDose(self, newIntensities):
+        self.currentIntensities = newIntensities
+        self.currentDose = Dmat.transpose * newIntensities
+    
+    # default constructor
+    def __init__(self):
+        self.numX = 0
+########## END OF CLASS DECLARATION ###########################################
+data = imrt_class()
 
 # Function definitions
 ####################################################################
@@ -90,7 +137,6 @@ for i in range(0, numStructs):
 
 print('Masking has been calculated')
 
-
 gastart = 0 ;
 gaend = 356;
 gastep = degreesep;
@@ -103,11 +149,14 @@ ca=[];
 os.chdir(readfolderD)
 for g in range(gastart, gaend, gastep):
     fname = 'Gantry' + str(g) + '_Couch' + str(0) + '_D.mat'
-    if os.path.isfile(fname):
+    bletfname = readfolder + 'Gantry' + str(g) + '_Couch' + str(0) + '_BEAMINFO.mat'
+    if os.path.isfile(fname) and os.path.isfile(bletfname):
         ga.append(g)
         ca.append(0)
 
-# build new sparse matrices
+print('There is enough data for ' + str(len(ga)) + ' different coplanar beam angles\n')
+
+]# build new sparse matrices
 
 # This code translates the sparse dose matrices from big voxel space to
 # small voxel space and writes it out to a binary file to be used in the
@@ -118,14 +167,20 @@ nBPB = np.zeros(len(ga))
 # nDIJSPB is the number of nonzeros in the Dmatrix for each beam
 nDIJSPB = np.zeros(len(ga))
 
+
+
+### THIS PART IS FOR LATER SINCE IT HANDLES THE VMAT SCENARIO
+print('Starting the process of reading')
 for i in range(0, len(ga)):
     fname = 'Gantry' + str(ga[i]) + '_Couch' + str(0) + '_D.mat'
-    print(fname)
-    print(fname + '   ' + ' of ' + str(len(ga)))
+    bletfname = readfolder + 'Gantry' + str(i) + '_Couch' + str(0) + '_BEAMINFO.mat'
     # extract voxel, beamlet indices and dose values
     D = sio.loadmat(fname)['D']
     [b,j,d] = sparse.find(D)
 
+    # Get beamlet information
+    binfoholder = sio.loadmat(bletfname)
+    
     nBPB[i] = max(j)
     nDIJSPB[i] = len(d)
     newb = originalVoxels[b]

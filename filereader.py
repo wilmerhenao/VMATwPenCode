@@ -245,17 +245,20 @@ print("Finished reading objective file:\n" + objfile)
 ## Read in the constraint file:
 #####NOTHING TO DO #############
 
-## Read in structures
+## Read in structures WILMER. CHANGE THIS. Reading from txt file != good!!
 lines = [myline.split('\t') for myline in [line.rstrip('\n') for line in open(structurefile)]]
 ## Collapse the above expression to a flat list
 invec = [item for sublist in lines for item in sublist]
+## Assignation of different values
 maskValueFilename = invec[0]
 fullMaskValueFilename = invec[1]
 data.numstructs = int(invec[2])
 data.numtargets = int(invec[3])
 data.numoars = int(invec[4])
+# Structure map OARs vs. TARGETs
 data.regionIndices = invec[5:(5+data.numstructs)]
 data.targets = invec[(5+data.numstructs):(5+2*data.numstructs)]
 data.oars = invec[(5+2*data.numstructs):(5+3*(data.numstructs))]
 print('Finished reading structures')
 
+# Read in mask values

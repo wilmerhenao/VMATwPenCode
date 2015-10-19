@@ -19,6 +19,7 @@ outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
 degreesep = 60 # How many degrees in between separating neighbor beams.
 objfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/objectives/obj1.txt'
 structurefile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/structureInputs.txt'
+algfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/algInputsWilmer.txt'
 
 # mimics an eigentriplet from Troy's code in eigentemplate.h
 class triplet:
@@ -192,7 +193,6 @@ print('finished assigning voxels to regions. Region objects read')
 # Read in mask values into structure data
 data.maskValue = maskValueSingle
 data.fullMaskValue = maskValueFull
-    
 print('Masking has been calculated')
 
 gastart = 0 ;
@@ -294,5 +294,12 @@ print("Finished reading objective file:\n" + objfile)
 ## Read in the constraint file:
 #####NOTHING TO DO #############
 
+# Reading algorithm Settings
+data.algOptions = [myline.split('\t') for myline in [line.rstrip('\n') for line in open(algfile)]]
+print("Finished reading algorithm inputs file:\n" + algfile)
 
-    
+####################################
+### FINISHED READING EVERYTHING ####
+####################################
+
+

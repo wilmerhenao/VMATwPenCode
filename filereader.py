@@ -26,6 +26,21 @@ class triplet:
     j = int()
     k = double()
 
+class region:
+    """ Contains all information relevant to a particular region"""
+    index = int()
+    sizeInVoxels = int()
+    indices = np.empty(1, dtype=int)
+    fullIndices = np.empty(1,dtype=int)
+    target = False
+    # Class constructor
+    def __init__(self, iind, isize, iindi, ifullindi, itarget):
+        self.index = iind
+        self.sizeInVoxels = isize
+        self.indices = iindi
+        self.fullIndices = ifullindi
+        self.target = itarget
+    
 class imrt_class:
     # constants particular to the problem
     numX = 0 # num beamlets
@@ -128,11 +143,26 @@ originalVoxels = np.zeros(numVoxels);
 for i in range(0,nVox.astype(np.int64)):
     originalVoxels[voxelAssignment[i].astype(np.int64)] = i
 
+## Read in structures WILMER. CHANGE THIS. Reading from txt file != good!!
+lines = [myline.split('\t') for myline in [line.rstrip('\n') for line in open(structurefile)]]
+## Collapse the above expression to a flat list
+invec = [item for sublist in lines for item in sublist]
+## Assignation of different values
+data.numstructs = int(invec[2])
+data.numtargets = int(invec[3])
+data.numoars = int(invec[4])
+# Structure map OARs vs. TARGETs
+data.regionIndices = invec[5:(5+data.numstructs)]
+data.targets = invec[(5+data.numstructs):(5+2*data.numstructs)]
+data.oars = invec[(5+2*data.numstructs):(5+3*(data.numstructs))]
+print('Finished reading structures')
+
 maskValueFull = np.zeros(nVox.astype(np.int64))
 maskValueSingle = np.zeros(nVox.astype(np.int64))
 # this priority is the order of priority for assigning a single structure per
 # voxel (from least to most important)
 
+# Don't forget to subtract 1 everytime you use this
 priority = [7, 24, 25, 23, 22, 21, 20, 16, 15, 14, 13, 12, 10, 11, 9,
 4, 3, 1, 2, 17, 18, 19, 5, 6, 8]
 
@@ -144,6 +174,25 @@ for i in range(0, numStructs):
     maskValueFull[originalVoxels[Vorg[s]].astype(int)] = maskValueFull[originalVoxels[Vorg[s]].astype(int)]+2**(s-1)
     maskValueSingle[originalVoxels[Vorg[s]].astype(int)] = 2**(s-1);
 
+# Reverse the list for the full mask value. No repeat contains all original values
+# and values will be removed as they get assigned
+priority.reverse()
+norepeat = unique(originalVoxels) 
+for i in priority:
+    s = i - 1
+    # initialize regions
+    istarget = str(s) in data.targets
+    tempindices = originalVoxels[Vorg[s]].astype(int) # In small voxels space
+    tempindicesfull = np.intersect1d(tempindices, norepeat)
+    data.regions.append(region(i, len(tempindices), tempindices, tempindicesfull, istarget))
+    # update the norepeat vector by removing the newly assigned indices
+    norepeat = np.setdiff1d(norepeat, tempindicesfull)
+print('finished assigning voxels to regions. Region objects read')
+    
+# Read in mask values into structure data
+data.maskValue = maskValueSingle
+data.fullMaskValue = maskValueFull
+    
 print('Masking has been calculated')
 
 gastart = 0 ;
@@ -245,20 +294,5 @@ print("Finished reading objective file:\n" + objfile)
 ## Read in the constraint file:
 #####NOTHING TO DO #############
 
-## Read in structures WILMER. CHANGE THIS. Reading from txt file != good!!
-lines = [myline.split('\t') for myline in [line.rstrip('\n') for line in open(structurefile)]]
-## Collapse the above expression to a flat list
-invec = [item for sublist in lines for item in sublist]
-## Assignation of different values
-maskValueFilename = invec[0]
-fullMaskValueFilename = invec[1]
-data.numstructs = int(invec[2])
-data.numtargets = int(invec[3])
-data.numoars = int(invec[4])
-# Structure map OARs vs. TARGETs
-data.regionIndices = invec[5:(5+data.numstructs)]
-data.targets = invec[(5+data.numstructs):(5+2*data.numstructs)]
-data.oars = invec[(5+2*data.numstructs):(5+3*(data.numstructs))]
-print('Finished reading structures')
 
-# Read in mask values
+    

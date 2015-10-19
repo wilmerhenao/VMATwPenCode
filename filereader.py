@@ -18,6 +18,12 @@ readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
 degreesep = 60 # How many degrees in between separating neighbor beams.
 
+# mimics an eigentriplet from Troy's code in eigentemplate.h
+class triplet:
+    i = int()
+    j = int()
+    k = double()
+
 class imrt_class:
     # constants particular to the problem
     numX = 0 # num beamlets
@@ -43,8 +49,8 @@ class imrt_class:
     algOptions = [] # vector of data input for algorithm options
 
     # big D matrix
-    Dmat = [] # sparse Dij matrix
-
+    Dmat = sparse((1,1), dtype=float) # sparse Dij matrix
+    
     # varios folders
     outputDirectory = outputfolder # given by the user in the first lines of *.py
     dataDirectory = readfolder
@@ -182,11 +188,7 @@ data.dijsPerBeam = np.empty(data.numbeams, dtype=int)
 beamletCounter = np.zeros(data.numbeams + 1)
 
 for i in range(0, data.numbeams):
-    fname = 'Gantry' + str(ga[i]) + '_Couch' + str(0) + '_D.mat'
     bletfname = readfolder + 'Gantry' + str(ga[i]) + '_Couch' + str(0) + '_BEAMINFO.mat'
-    # extract voxel, beamlet indices and dose values
-    D = sio.loadmat(fname)['D']
-    [b,j,d] = sparse.find(D)
     # Get beamlet information
     binfoholder = sio.loadmat(bletfname)
 
@@ -196,75 +198,41 @@ for i in range(0, data.numbeams):
     data.dijsPerBeam[i] =  int(binfoholder['numberNonZerosDij'])
     beamletCounter[i+1] = beamletCounter[i] + data.beamletsPerBeam[i]
     
+# Generating dose matrix dimensions
+data.numX = sum(data.beamletsPerBeam)
+data.totaldijs = sum(data.dijsPerBeam)
+# Allocate structure for full Dmat file
+data.Dmat = sparse.csr_matrix((data.numX, data.numvoxels), dtype=float)
+
+# Work with the D matrices for each beam angle
+overallDijsCounter = 0
+for i in range(0, data.numbeams):
+    fname = 'Gantry' + str(ga[i]) + '_Couch' + str(0) + '_D.mat'
+    print('Processing matrix from gantry & couch angle: ' + fname)
+    # extract voxel, beamlet indices and dose values
+    D = sio.loadmat(fname)['D']
+    # write out bixel sorted binary file
+    [b,j,d] = sparse.find(D)
+    newb = originalVoxels[b]
+    
     nBPB[i] = max(j)
     nDIJSPB[i] = len(d)
-    newb = originalVoxels[b]
 
     # write out voxel sorted binary file
     [jt,bt,dt] = sparse.find(D.transpose())
     newbt = originalVoxels[bt]
+    # Notice here that python is smart enough to subtract 1 from matlab's mat
+    # files (where the index goes). This was confirmed by Wilmer on 10/19/2015
+    tempsparse=sparse.csr_matrix((dt,(jt + beamletCounter[i], newbt)),
+                                 shape=(data.numX, data.numvoxels), dtype=float)
+    data.Dmat = data.Dmat + tempsparse
 
-    #nBPB = nBPB.astype(np.int64)
-    #nDIJBPB = nDIJBPB.astype(np.int64)
+    ## Can I erase the below part?
     beamlog = np.ones(len(ga))
     nBeams = len(ga)
     nBeamlets = np.zeros(nBeams)
     rowCumSum = []
+print('Finished reading D matrices')
 
-# Generating dose matrix dimensions
-data.numX = sum(data.beamletsPerBeam)
-data.totaldijs = sum(data.dijsPerBeam)
-
+## Read in the objective file:
     
-### THIS PART IS FOR LATER SINCE IT HANDLES THE VMAT SCENARIO
-print('Starting the process of reading')
-for i in range(0, len(ga)):
-    fname = 'Gantry' + str(ga[i]) + '_Couch' + str(0) + '_D.mat'
-    bletfname = readfolder + 'Gantry' + str(i) + '_Couch' + str(0) + '_BEAMINFO.mat'
-    # extract voxel, beamlet indices and dose values
-    D = sio.loadmat(fname)['D']
-    [b,j,d] = sparse.find(D)
-
-    # Get beamlet information
-    binfoholder = sio.loadmat(bletfname)
-    
-    nBPB[i] = max(j)
-    nDIJSPB[i] = len(d)
-    newb = originalVoxels[b]
-
-            # write out voxel sorted binary file
-            [jt,bt,dt] = sparse.find(D.transpose())
-            newbt = originalVoxels[bt]
-
-            nBPB = nBPB.astype(np.int64)
-            nDIJBPB = nDIJBPB.astype(np.int64)
-
-            beamlog = np.ones(len(ga))
-            nBeams = len(ga)
-            beamlog(nBeams)
-            nBeamlets = np.zeros(nBeams)
-            rowCumSum = []
-
-            # Column generation based greedy heuristic for Master Problem
-
-            # Define aperture class.
-
-            class aperture:
-                m = 
-                l = 0
-                r = N
-
-
-                # Ccalig contains the list of the apertures that enter as nonzero. I start with
-                # an empty list.
-                Ccalig = []
-                zbar = 0
-                K = range(0, 360, degreesep)
-
-
-
-                # for each aperture not in CCALIG do the pricing problem subroutine
-                for i in [x for x in K if x not in Ccalig]:
-                    print(i)
-
-                    def PPsubroutine(Ccalig, Ak):

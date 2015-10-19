@@ -18,6 +18,7 @@ readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
 degreesep = 60 # How many degrees in between separating neighbor beams.
 objfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/objectives/obj1.txt'
+structurefile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/structureInputs.txt'
 
 # mimics an eigentriplet from Troy's code in eigentemplate.h
 class triplet:
@@ -239,3 +240,22 @@ print('Finished reading D matrices')
 lines = [myline.split('\t') for myline in [line.rstrip('\n') for line in open(objfile)]]
 ## Collapse the above expression to a flat list
 data.objectiveInputFiles = [item for sublist in lines for item in sublist]
+print("Finished reading objective file:\n" + objfile)
+
+## Read in the constraint file:
+#####NOTHING TO DO #############
+
+## Read in structures
+lines = [myline.split('\t') for myline in [line.rstrip('\n') for line in open(structurefile)]]
+## Collapse the above expression to a flat list
+invec = [item for sublist in lines for item in sublist]
+maskValueFilename = invec[0]
+fullMaskValueFilename = invec[1]
+data.numstructs = int(invec[2])
+data.numtargets = int(invec[3])
+data.numoars = int(invec[4])
+data.regionIndices = invec[5:(5+data.numstructs)]
+data.targets = invec[(5+data.numstructs):(5+2*data.numstructs)]
+data.oars = invec[(5+2*data.numstructs):(5+3*(data.numstructs))]
+print('Finished reading structures')
+

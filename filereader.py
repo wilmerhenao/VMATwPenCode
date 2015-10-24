@@ -2,10 +2,11 @@
 #!/usr/bin/python
 
 import glob, os
-import pyipopt
+#import pyipopt
 import numpy as np
 import scipy.io as sio
 from scipy import sparse
+from scipy.optimize import minimize
 
 # First of all make sure that I can read the data
 
@@ -20,12 +21,9 @@ degreesep = 60 # How many degrees in between separating neighbor beams.
 objfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/objectives/obj1.txt'
 structurefile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/structureInputs.txt'
 algfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/algInputsWilmer.txt'
-
-# mimics an eigentriplet from Troy's code in eigentemplate.h
-class triplet:
-    i = int()
-    j = int()
-    k = double()
+# The 1 is subtracted at read time so the user doesn't have to do it everytime
+priority = [7, 24, 25, 23, 22, 21, 20, 16, 15, 14, 13, 12, 10, 11, 9, 4, 3, 1, 2, 17, 18, 19, 5, 6, 8]
+priority = (np.array(priority)-1).tolist()
 
 class region:
     """ Contains all information relevant to a particular region"""
@@ -41,11 +39,11 @@ class region:
         self.indices = iindi
         self.fullIndices = ifullindi
         self.target = itarget
-    
+
 class imrt_class:
     # constants particular to the problem
     numX = 0 # num beamlets
-    numvoxels = 0 #num voxels (small voxel space)
+    numvoxels = int() #num voxels (small voxel space)
     numstructs = 0 # num of structures/regions
     numoars = 0 # num of organs at risk
     numtargets = 0 # num of targets
@@ -65,9 +63,11 @@ class imrt_class:
     objectiveInputFiles = [] # vector of data input files for objectives
     constraintInputFiles = [] # vector of data input files for constraints
     algOptions = [] # vector of data input for algorithm options
+    functionData = []
+    voxelAssignment = []
 
     # big D matrix
-    Dmat = sparse((1,1), dtype=float) # sparse Dij matrix
+    Dmat = sparse.csr_matrix((1,1), dtype=float) # sparse Dij matrix
     
     # varios folders
     outputDirectory = outputfolder # given by the user in the first lines of *.py
@@ -80,7 +80,7 @@ class imrt_class:
     # data class function
     def calcDose(self, newIntensities):
         self.currentIntensities = newIntensities
-        self.currentDose = Dmat.transpose * newIntensities
+        self.currentDose = self.Dmat.transpose() * newIntensities
     
     # default constructor
     def __init__(self):
@@ -116,11 +116,11 @@ vdims = readctvoxelinfo()
 numVoxels = vdims['x'] * vdims['y'] * vdims['z']
 
 Vorg = []
-bigZ = np.zeros(numVoxels)
+bigZ = np.zeros(numVoxels, dtype=int)
 
 # Vorg is a list of the structure voxels in big voxel space
 for s in range(0, numStructs):
-    Vorg.append(sio.loadmat(allNames[s])['v']-1)
+    Vorg.append(sio.loadmat(allNames[s])['v']-1) # correct 1 position mat2Py.
     bigZ[Vorg[s]] = 1.0
 
 # nVox is "small voxel space", with only the voxels that have
@@ -128,21 +128,26 @@ for s in range(0, numStructs):
 nVox = sum(bigZ);
 
 # voxelAssignment provides the mapping from small voxel space to big
-# voxel space
-voxelAssignment = np.zeros(nVox.astype(np.int64))
+# voxel space.
+data.voxelAssignment = np.empty(nVox.astype(np.int64))
+data.voxelAssignment[:] = np.NAN
+
 counter = 0
 for i in range(0, numVoxels):
     if(bigZ[i] > 0):
         # If big space voxel is nonzero, save to small vxl space
-        voxelAssignment[counter] = i
+        data.voxelAssignment[counter] = i
         counter+=1
 print('mapping from small voxel space to big voxel space done')
 
 # originalVoxels is the mapping from big voxel space to small voxel
 # space
-originalVoxels = np.zeros(numVoxels);
-for i in range(0,nVox.astype(np.int64)):
-    originalVoxels[voxelAssignment[i].astype(np.int64)] = i
+
+# It is VERY important to initialize originalVoxels with NAN in this case.
+# Or you can make an error since 0 is a valid position in python.
+originalVoxels = np.empty(numVoxels); originalVoxels[:] = np.NAN
+for i in range(0, nVox.astype(np.int64)):
+    originalVoxels[data.voxelAssignment[i].astype(np.int64)] = i
 
 ## Read in structures WILMER. CHANGE THIS. Reading from txt file != good!!
 lines = [myline.split('\t') for myline in [line.rstrip('\n') for line in open(structurefile)]]
@@ -163,31 +168,34 @@ maskValueSingle = np.zeros(nVox.astype(np.int64))
 # this priority is the order of priority for assigning a single structure per
 # voxel (from least to most important)
 
-# Don't forget to subtract 1 everytime you use this
-priority = [7, 24, 25, 23, 22, 21, 20, 16, 15, 14, 13, 12, 10, 11, 9,
-4, 3, 1, 2, 17, 18, 19, 5, 6, 8]
-
+# CAREFUL!!!! masking value gets indices that agree with Troy's matlab implemen
+# tation. My reasoning is that I want to be compatible with his code down the
+# road. minimum maskin value will be 1 (one).
 for i in range(0, numStructs):
-    s = priority[i] - 1
+    s = priority[i]
     # generates mask values (the integer that we decompose to get structure
     # assignment). for single it just overrides with the more important
     # structure
-    maskValueFull[originalVoxels[Vorg[s]].astype(int)] = maskValueFull[originalVoxels[Vorg[s]].astype(int)]+2**(s-1)
-    maskValueSingle[originalVoxels[Vorg[s]].astype(int)] = 2**(s-1);
+    maskValueFull[originalVoxels[Vorg[s]].astype(int)] = maskValueFull[originalVoxels[Vorg[s]].astype(int)]+2**(s)
+    maskValueSingle[originalVoxels[Vorg[s]].astype(int)] = 2**(s)
+    # print('s: ' + str(s) + ', mValue:' + str(maskValueFull[111001]))
+
+print('masking value single from ' + str(min(maskValueSingle)) + ' to ' + str(max(maskValueSingle)))
 
 # Reverse the list for the full mask value. No repeat contains all original values
 # and values will be removed as they get assigned
 priority.reverse()
-norepeat = unique(originalVoxels) 
+norepeat = unique(originalVoxels[np.invert(np.isnan(originalVoxels))])
 for i in priority:
-    s = i - 1
+    s = i
     # initialize regions
     istarget = str(s) in data.targets
-    tempindices = originalVoxels[Vorg[s]].astype(int) # In small voxels space
-    tempindicesfull = np.intersect1d(tempindices, norepeat)
+    tempindices = np.intersect1d(tempindices, norepeat)
+    tempindicesfull = originalVoxels[Vorg[s]].astype(int) # In small voxels space
     data.regions.append(region(i, len(tempindices), tempindices, tempindicesfull, istarget))
     # update the norepeat vector by removing the newly assigned indices
     norepeat = np.setdiff1d(norepeat, tempindicesfull)
+
 print('finished assigning voxels to regions. Region objects read')
     
 # Read in mask values into structure data
@@ -213,7 +221,7 @@ for g in range(gastart, gaend, gastep):
         ga.append(g)
         ca.append(0)
 
-print('There is enough data for ' + str(len(ga)) + ' different coplanar beam angles\n')
+print('There is enough data for ' + str(len(ga)) + ' beam angles\n')
 
 # build new sparse matrices
 
@@ -288,7 +296,8 @@ print('Finished reading D matrices')
 ## Read in the objective file:
 lines = [myline.split('\t') for myline in [line.rstrip('\n') for line in open(objfile)]]
 ## Collapse the above expression to a flat list
-data.objectiveInputFiles = [item for sublist in lines for item in sublist]
+data.functionData = [item for sublist in lines for item in sublist]
+data.objectiveInputFiles = objfile
 print("Finished reading objective file:\n" + objfile)
 
 ## Read in the constraint file:
@@ -298,8 +307,95 @@ print("Finished reading objective file:\n" + objfile)
 data.algOptions = [myline.split('\t') for myline in [line.rstrip('\n') for line in open(algfile)]]
 print("Finished reading algorithm inputs file:\n" + algfile)
 
+# resize dose and beamlet vectors
+data.currentDose = np.zeros(data.numvoxels)
+data.currentIntensities = np.zeros(data.numX)
+
 ####################################
 ### FINISHED READING EVERYTHING ####
 ####################################
 
+## Work with function data.
+functionData =  np.array([double(i) for i in data.functionData[3:len(data.functionData)]]).reshape(3, data.numstructs)
+for s in range(0, data.numstructs):
+    if data.regions[s].sizeInVoxels > 0:
+        functionData[1,s] = functionData[1,s] * 1 / data.regions[s].sizeInVoxels
+        functionData[2,s] = functionData[2,s] * 1 / data.regions[s].sizeInVoxels
 
+# initialize helper variables
+
+quadHelperThresh = np.zeros(data.numvoxels)
+quadHelperOver = np.zeros(data.numvoxels)
+quadHelperUnder = np.zeros(data.numvoxels)
+quadHelperAlphaBetas = np.zeros(data.numvoxels)
+uDose = np.zeros(data.numvoxels)
+oDose = np.zeros(data.numvoxels)
+
+# build for each voxel
+for s in range(0, data.numstructs):
+    for j in range(0, data.regions[s].sizeInVoxels):
+        quadHelperThresh[data.regions[s].indices[j]] = functionData[0][s]
+        quadHelperOver[data.regions[s].indices[j]] = functionData[1][s]
+        quadHelperUnder[data.regions[s].indices[j]] = functionData[2][s]
+
+def evaluateFunction(x):
+    data.calcDose(x)
+    oDoseObj = data.currentDose - quadHelperThresh
+    oDoseObj = (oDoseObj > 0) * oDoseObj
+    oDoseObj = oDoseObj * oDoseObj * quadHelperOver
+    uDoseObj = quadHelperThresh - data.currentDose
+    uDoseObj = (uDoseObj > 0) * uDoseObj
+    uDoseObj = uDoseObj * uDoseObj * quadHelperUnder
+    objectiveValue = sum(oDoseObj + uDoseObj)
+    return(objectiveValue)
+
+def evaluateGradient(x):
+    data.calcDose(x)
+    # Calculate helper vectors
+    oDose = 2 * (data.currentDose - quadHelperThresh) * quadHelperOver
+    uDose = 2 * (data.currentDose - quadHelperThresh) * quadHelperUnder
+    oDose = (oDose > 0) * oDose
+    uDose = (uDose < 0) * uDose
+    # Calculate gradient
+    gradient = data.Dmat * (oDose + uDose)
+    return(gradient)
+
+def evaluateHessian(x):
+    # Build helper array
+    data.calcDose(x)
+    quadHelperAlphaBetas = (data.currentDose < quadHelperThresh) * 2 * quadHelperUnder
+    quadHelperAlphaBetas += (data.currentDose >= quadHelperThresh) * 2 * quadHelperOver
+    # generate Hessian using matrix multiplication
+    abDmat = data.Dmat *sparse.diags(quadHelperAlphaBetas, 0)* data.Dmat.transpose()
+    return(abDmat)
+
+def calcObjGrad(x):
+    data.calcDose(x)
+    oDoseObj = data.currentDose - quadHelperThresh
+    oDoseObjCl = (oDoseObj > 0) * oDoseObj
+    oDoseObjGl = oDoseObjCl * oDoseObjCl * quadHelperOver
+    uDoseObj = quadHelperThresh - data.currentDose
+    uDoseObjCl = (uDoseObj > 0) * uDoseObj
+    uDoseObjGl = uDoseObjCl * uDoseObjCl * quadHelperUnder
+    objectiveValue = sum(oDoseObjGl + uDoseObjGl)
+    mygradient = data.Dmat * 2 * (oDoseObjCl + uDoseObjCl)
+    return(objectiveValue, mygradient)
+
+# find initial location
+data.calcDose(data.currentIntensities)
+
+# res = minimize(evaluateFunction, data.currentIntensities, method='nelder-mead', options={'xtol': 1e-8, 'disp': True})
+# res = minimize(evaluateFunction, data.currentIntensities, method='BFGS', jac=evaluateGradient, options={'disp': True})
+# res = minimize(evaluateFunction, data.currentIntensities+0.1, method='Newton-CG', jac=evaluateGradient, hess=evaluateHessian, options={'disp': True})
+res = minimize(calcObjGrad, data.currentIntensities,method='L-BFGS-B', jac = True, bounds=[(0, None) for i in range(0, len(data.currentIntensities))], options={'ftol':1e-6,'disp':5})
+# results = pyipopt.fmin_unconstrained(evaluateFunction, data.currentIntensities+1, evaluateGradient, None)
+# results = pyipopt.fmin_unconstrained(evaluateFunction, data.currentIntensities+1, evaluateGradient, evaluateHessian)
+# print results
+
+
+## Tester Dmat
+[b,j,d] = sparse.find(data.Dmat)
+for i in range(0, len(b)):
+    if (b[i] == 6661):
+        if (j[i] == 212879):
+            print(d[i])

@@ -49,6 +49,7 @@ class imrt_class:
     numtargets = 0 # num of targets
     numbeams = 0 # num of beams
     totaldijs = 0 # num of nonzeros in Dij matrix
+    nnz_jac_g = 0
 
     # vectors
     beamNumPerBeam = [] # beam index per beam (for reading in individual beams)
@@ -193,7 +194,7 @@ for s in priority:
     istarget = str(s) in data.targets
     tempindicesfull = originalVoxels[Vorg[s]].astype(int) # In small voxels space
     tempindices = np.intersect1d(tempindicesfull, norepeat)
-    print(str(s) + ',' + str(len(tempindicesfull)) + ',' + str(len(tempindices)))
+    print("initialize region " + str(s) + ', full indices: ' + str(len(tempindicesfull)) + ', and single indices: ' + str(len(tempindices)))
     data.regions.append(region(s, tempindices, tempindicesfull, istarget))
     # update the norepeat vector by removing the newly assigned indices
     norepeat = np.setdiff1d(norepeat, tempindices)
@@ -216,7 +217,6 @@ ca=[];
 
 os.chdir(readfolderD)
 for g in range(gastart, gaend, gastep):
-    print(g)
     fname = 'Gantry' + str(g) + '_Couch' + str(0) + '_D.mat'
     bletfname = readfolder + 'Gantry' + str(g) + '_Couch' + str(0) + '_BEAMINFO.mat'
     if os.path.isfile(fname) and os.path.isfile(bletfname):
@@ -275,7 +275,7 @@ for i in range(0, data.numbeams):
     # write out bixel sorted binary file
     [b,j,d] = sparse.find(D)
     newb = originalVoxels[b]
-    
+    data.nnz_jac_g += len(b)
     nBPB[i] = max(j)
     nDIJSPB[i] = len(d)
 
@@ -342,7 +342,7 @@ for s in range(0, data.numstructs):
         quadHelperOver[int(data.regions[s].indices[j])] = functionData[1][s]
         quadHelperUnder[int(data.regions[s].indices[j])] = functionData[2][s]
 
-def evaluateFunction(x):
+def evaluateFunction(x, user_data= None):
     data.calcDose(x)
     oDoseObj = data.currentDose - quadHelperThresh
     oDoseObj = (oDoseObj > 0) * oDoseObj
@@ -353,25 +353,16 @@ def evaluateFunction(x):
     objectiveValue = sum(oDoseObj + uDoseObj)
     return(objectiveValue)
 
-def evaluateGradient(x):
+def evaluateGradient(x, user_data= None):
     data.calcDose(x)
-    # Calculate helper vectors
-    oDose = 2 * (data.currentDose - quadHelperThresh) * quadHelperOver
-    uDose = 2 * (data.currentDose - quadHelperThresh) * quadHelperUnder
-    oDose = (oDose > 0) * oDose
-    uDose = (uDose < 0) * uDose
-    # Calculate gradient
-    gradient = data.Dmat * (oDose + uDose)
-    return(gradient)
-
-def evaluateHessian(x):
-    # Build helper array
-    data.calcDose(x)
-    quadHelperAlphaBetas = (data.currentDose < quadHelperThresh) * 2 * quadHelperUnder
-    quadHelperAlphaBetas += (data.currentDose >= quadHelperThresh) * 2 * quadHelperOver
-    # generate Hessian using matrix multiplication
-    abDmat = data.Dmat *sparse.diags(quadHelperAlphaBetas, 0)* data.Dmat.transpose()
-    return(abDmat)
+    oDoseObj = data.currentDose - quadHelperThresh
+    uDoseObj = quadHelperThresh - data.currentDose
+    oDoseObjCl = (oDoseObj > 0) * oDoseObj
+    uDoseObjCl = (uDoseObj > 0) * uDoseObj
+    oDoseObjGl = oDoseObjCl * quadHelperOver
+    uDoseObjGl = uDoseObjCl * quadHelperUnder
+    my2gradient = data.Dmat * 2 * (oDoseObjGl - uDoseObjGl)
+    return(my2gradient)
 
 def calcObjGrad(x):
     data.calcDose(x)
@@ -387,21 +378,81 @@ def calcObjGrad(x):
     mygradient = data.Dmat * 2 * (oDoseObjGl - uDoseObjGl)
     return(objectiveValue, mygradient)
 
-# find initial location
-data.currentIntensities = np.zeros(data.numX)
-data.calcDose(data.currentIntensities)
-res = minimize(calcObjGrad, data.currentIntensities,method='L-BFGS-B', jac = True, bounds=[(0, None) for i in range(0, len(data.currentIntensities))], options={'ftol':1e-6,'disp':5})
-# results = pyipopt.fmin_unconstrained(evaluateFunction, data.currentIntensities+1, evaluateGradient, None)
-# results = pyipopt.fmin_unconstrained(evaluateFunction, data.currentIntensities+1, evaluateGradient, evaluateHessian)
-# print results
+def evaluateHessian(x, lagrange, obj_factor, flag, user_data = None):
+    if flag:
+        # Build helper array
+        data.calcDose(x)
+        values = np.zeros(int(data.numX * (data.numX + 1) / 2), float_)
+        #hessian = sparse.csr_matrix((data.numX, data.numX))
+        quadHelperAlphaBetas = (data.currentDose < quadHelperThresh) * 2 * quadHelperUnder
+        quadHelperAlphaBetas += (data.currentDose >= quadHelperThresh) * 2 * quadHelperOver
+        # generate Hessian using matrix multiplication
+        abDmat = obj_factor * data.Dmat *sparse.diags(quadHelperAlphaBetas, 0)* data.Dmat.transpose()
+        
+        #[i,j,d] = sparse.find(abDmat)
+        hessian = abDmat.todense()
+        idx = 0
+        for i in range(0, data.numX):
+            for j in range(0,i):
+                values[idx] = hessian[i,j]
+                idx += 1
+    else:
+        # Build helper array
+        data.calcDose(x)
+        values = np.zeros(int(data.numX * (data.numX + 1) / 2), float_)
+        #hessian = sparse.csr_matrix((data.numX, data.numX))
+        quadHelperAlphaBetas = (data.currentDose < quadHelperThresh) * 2 * quadHelperUnder
+        quadHelperAlphaBetas += (data.currentDose >= quadHelperThresh) * 2 * quadHelperOver
+        # generate Hessian using matrix multiplication
+        abDmat = obj_factor * data.Dmat *sparse.diags(quadHelperAlphaBetas, 0)* data.Dmat.transpose()
+        
+        #[i,j,d] = sparse.find(abDmat)
+        hessian = abDmat.todense()
+        idx = 0
+        for i in range(0, data.numX):
+            for j in range(0,i):
+                values[idx] = hessian[i,j]
+                idx += 1
+    return(values)
+
+
+def eval_g(x, user_data= None):
+           return array([], float_)
+
+def eval_jac_g(x, flag, user_data = None):
+    if flag:
+        return ([ ], [])
+    else:
+        return array([ ])
 
 ## IPOPT SOLUTION
 
 data.currentIntensities = np.zeros(data.numX)
-data.calcDose(data.currentIntensities)
 nvar = data.numX
+xl = np.zeros(data.numX)
+xu = 2e19*np.ones(data.numX)
 m = 0
-xl = np.zeros(len(data.numX))
-xu = 2e19*np.ones(len(data.numX))
+gl = np.zeros(1)
+gu = 2e19*np.ones(1)
+g_L = numpy.array([], dtype=float)
+g_U = numpy.array([], dtype=float)
+nnzj = 0
+nnzh = int(data.numX * (data.numX + 1) / 2)
 
-nlp = pyipopt.create(nvar, xl, xu, m, )
+nlp = pyipopt.create(nvar, xl, xu, m, g_L, g_U, nnzj, nnzh, evaluateFunction, evaluateGradient, eval_g, eval_jac_g, evaluateHessian)
+data.currentIntensities = np.zeros(data.numX)
+nlp.num_option('tol', 1e-3)
+nlp.str_option('hessian_approximation', 'limited-memory')
+nlp.str_option('mu_strategy', 'adaptive')
+nlp.str_option('mu_oracle', 'probing')
+nlp.str_option('linear_solver', 'ma97')
+nlp.num_option('acceptable_tol', 1e-1)
+x, zl, zu, constraint_multipliers, obj, status = nlp.solve(data.currentIntensities)
+
+# PYTHON scipy.optimize solution
+
+# find initial location
+# data.currentIntensities = np.zeros(data.numX)
+# res = minimize(calcObjGrad, data.currentIntensities,method='L-BFGS-B', jac = True, bounds=[(0, None) for i in range(0, len(data.currentIntensities))], options={'ftol':1e-6,'disp':5})
+
+

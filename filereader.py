@@ -2,7 +2,7 @@
 #!/usr/bin/python
 
 import glob, os
-#import pyipopt
+import pyipopt
 import numpy as np
 import scipy.io as sio
 from scipy import sparse
@@ -33,9 +33,9 @@ class region:
     fullIndices = np.empty(1,dtype=int)
     target = False
     # Class constructor
-    def __init__(self, iind, isize, iindi, ifullindi, itarget):
+    def __init__(self, iind, iindi, ifullindi, itarget):
         self.index = iind
-        self.sizeInVoxels = isize
+        self.sizeInVoxels = len(iindi)
         self.indices = iindi
         self.fullIndices = ifullindi
         self.target = itarget
@@ -182,22 +182,24 @@ for i in range(0, numStructs):
 
 print('masking value single from ' + str(min(maskValueSingle)) + ' to ' + str(max(maskValueSingle)))
 
-# Reverse the list for the full mask value. No repeat contains all original values
-# and values will be removed as they get assigned
+# Reverse the list for the full mask value. norepeat contains all original values
+# and values will be removed as they get assigned. This is to achieve precedence
+# TROY!. My regions are not organized alphabetically but in inverse order of
+# priority. So they won't match unless you look for the right one.
 priority.reverse()
 norepeat = unique(originalVoxels[np.invert(np.isnan(originalVoxels))])
-for i in priority:
-    s = i
+for s in priority:
     # initialize regions
     istarget = str(s) in data.targets
-    tempindices = np.intersect1d(tempindices, norepeat)
     tempindicesfull = originalVoxels[Vorg[s]].astype(int) # In small voxels space
-    data.regions.append(region(i, len(tempindices), tempindices, tempindicesfull, istarget))
+    tempindices = np.intersect1d(tempindicesfull, norepeat)
+    print(str(s) + ',' + str(len(tempindicesfull)) + ',' + str(len(tempindices)))
+    data.regions.append(region(s, tempindices, tempindicesfull, istarget))
     # update the norepeat vector by removing the newly assigned indices
-    norepeat = np.setdiff1d(norepeat, tempindicesfull)
+    norepeat = np.setdiff1d(norepeat, tempindices)
 
 print('finished assigning voxels to regions. Region objects read')
-    
+ 
 # Read in mask values into structure data
 data.maskValue = maskValueSingle
 data.fullMaskValue = maskValueFull
@@ -309,16 +311,18 @@ print("Finished reading algorithm inputs file:\n" + algfile)
 
 # resize dose and beamlet vectors
 data.currentDose = np.zeros(data.numvoxels)
-data.currentIntensities = np.zeros(data.numX)
 
 ####################################
 ### FINISHED READING EVERYTHING ####
 ####################################
 
 ## Work with function data.
-functionData =  np.array([double(i) for i in data.functionData[3:len(data.functionData)]]).reshape(3, data.numstructs)
+data.functionData = np.array([double(i) for i in data.functionData[3:len(data.functionData)]]).reshape(3,data.numstructs)
+# I have to reorder the right region since my order is not alphabetical
+data.functionData = data.functionData[:,priority]
+functionData = data.functionData
 for s in range(0, data.numstructs):
-    if data.regions[s].sizeInVoxels > 0:
+    if(data.regions[s].sizeInVoxels > 0):
         functionData[1,s] = functionData[1,s] * 1 / data.regions[s].sizeInVoxels
         functionData[2,s] = functionData[2,s] * 1 / data.regions[s].sizeInVoxels
 
@@ -334,9 +338,9 @@ oDose = np.zeros(data.numvoxels)
 # build for each voxel
 for s in range(0, data.numstructs):
     for j in range(0, data.regions[s].sizeInVoxels):
-        quadHelperThresh[data.regions[s].indices[j]] = functionData[0][s]
-        quadHelperOver[data.regions[s].indices[j]] = functionData[1][s]
-        quadHelperUnder[data.regions[s].indices[j]] = functionData[2][s]
+        quadHelperThresh[int(data.regions[s].indices[j])] = functionData[0][s]
+        quadHelperOver[int(data.regions[s].indices[j])] = functionData[1][s]
+        quadHelperUnder[int(data.regions[s].indices[j])] = functionData[2][s]
 
 def evaluateFunction(x):
     data.calcDose(x)
@@ -378,24 +382,26 @@ def calcObjGrad(x):
     uDoseObjCl = (uDoseObj > 0) * uDoseObj
     uDoseObjGl = uDoseObjCl * uDoseObjCl * quadHelperUnder
     objectiveValue = sum(oDoseObjGl + uDoseObjGl)
-    mygradient = data.Dmat * 2 * (oDoseObjCl + uDoseObjCl)
+    oDoseObjGl = oDoseObjCl * quadHelperOver
+    uDoseObjGl = uDoseObjCl * quadHelperUnder
+    mygradient = data.Dmat * 2 * (oDoseObjGl - uDoseObjGl)
     return(objectiveValue, mygradient)
 
 # find initial location
+data.currentIntensities = np.zeros(data.numX)
 data.calcDose(data.currentIntensities)
-
-# res = minimize(evaluateFunction, data.currentIntensities, method='nelder-mead', options={'xtol': 1e-8, 'disp': True})
-# res = minimize(evaluateFunction, data.currentIntensities, method='BFGS', jac=evaluateGradient, options={'disp': True})
-# res = minimize(evaluateFunction, data.currentIntensities+0.1, method='Newton-CG', jac=evaluateGradient, hess=evaluateHessian, options={'disp': True})
 res = minimize(calcObjGrad, data.currentIntensities,method='L-BFGS-B', jac = True, bounds=[(0, None) for i in range(0, len(data.currentIntensities))], options={'ftol':1e-6,'disp':5})
 # results = pyipopt.fmin_unconstrained(evaluateFunction, data.currentIntensities+1, evaluateGradient, None)
 # results = pyipopt.fmin_unconstrained(evaluateFunction, data.currentIntensities+1, evaluateGradient, evaluateHessian)
 # print results
 
+## IPOPT SOLUTION
 
-## Tester Dmat
-[b,j,d] = sparse.find(data.Dmat)
-for i in range(0, len(b)):
-    if (b[i] == 6661):
-        if (j[i] == 212879):
-            print(d[i])
+data.currentIntensities = np.zeros(data.numX)
+data.calcDose(data.currentIntensities)
+nvar = data.numX
+m = 0
+xl = np.zeros(len(data.numX))
+xu = 2e19*np.ones(len(data.numX))
+
+nlp = pyipopt.create(nvar, xl, xu, m, )

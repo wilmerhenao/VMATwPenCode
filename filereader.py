@@ -1,5 +1,14 @@
 
-#!/usr/bin/python
+#!/usr/bin/env python
+
+__author__ = 'wilmer'
+try:
+    import mkl
+    have_mkl = True
+    print("Running with MKL Acceleration")
+except ImportError:
+    have_mkl = False
+    print("Running with normal backends")
 
 import glob, os
 import pyipopt
@@ -7,12 +16,15 @@ import numpy as np
 import scipy.io as sio
 from scipy import sparse
 from scipy.optimize import minimize
+import time
 
 # First of all make sure that I can read the data
 
 # In the data directory with the *VOILIST.mat files, this opens up
 # each structure file and reads in the structure names and sizes in
 # voxels
+
+start = time.time()
 
 readfolder = '/home/wilmer/Documents/Troy_BU/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
@@ -21,9 +33,20 @@ degreesep = 60 # How many degrees in between separating neighbor beams.
 objfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/objectives/obj1.txt'
 structurefile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/structureInputs.txt'
 algfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/algInputsWilmer.txt'
+mm3voxels = '/home/wilmer/Documents/Troy_BU/Data/DataProject/HN/hn3mmvoxels.mat'
 # The 1 is subtracted at read time so the user doesn't have to do it everytime
 priority = [7, 24, 25, 23, 22, 21, 20, 16, 15, 14, 13, 12, 10, 11, 9, 4, 3, 1, 2, 17, 18, 19, 5, 6, 8]
 priority = (np.array(priority)-1).tolist()
+mylines = [line.rstrip('\n') for line in open('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/beamAngles.txt')]
+
+catemp = []
+gatemp = [] 
+for thisline in mylines:
+    a, b = thisline.split('\t')
+    if (int(float(a)) % 10 == 0):
+        if(int(float(b)) % 10 == 0):
+            catemp.append(a)
+            gatemp.append(b)
 
 class region:
     """ Contains all information relevant to a particular region"""
@@ -188,7 +211,7 @@ print('masking value single from ' + str(min(maskValueSingle)) + ' to ' + str(ma
 # TROY!. My regions are not organized alphabetically but in inverse order of
 # priority. So they won't match unless you look for the right one.
 priority.reverse()
-norepeat = unique(originalVoxels[np.invert(np.isnan(originalVoxels))])
+norepeat = np.unique(originalVoxels[np.invert(np.isnan(originalVoxels))])
 for s in priority:
     # initialize regions
     istarget = str(s) in data.targets
@@ -317,7 +340,7 @@ data.currentDose = np.zeros(data.numvoxels)
 ####################################
 
 ## Work with function data.
-data.functionData = np.array([double(i) for i in data.functionData[3:len(data.functionData)]]).reshape(3,data.numstructs)
+data.functionData = np.array([float(i) for i in data.functionData[3:len(data.functionData)]]).reshape(3,data.numstructs)
 # I have to reorder the right region since my order is not alphabetical
 data.functionData = data.functionData[:,priority]
 functionData = data.functionData
@@ -389,7 +412,6 @@ def evaluateHessian(x, lagrange, obj_factor, flag, user_data = None):
         # generate Hessian using matrix multiplication
         abDmat = obj_factor * data.Dmat *sparse.diags(quadHelperAlphaBetas, 0)* data.Dmat.transpose()
         
-        #[i,j,d] = sparse.find(abDmat)
         hessian = abDmat.todense()
         idx = 0
         for i in range(0, data.numX):
@@ -406,7 +428,6 @@ def evaluateHessian(x, lagrange, obj_factor, flag, user_data = None):
         # generate Hessian using matrix multiplication
         abDmat = obj_factor * data.Dmat *sparse.diags(quadHelperAlphaBetas, 0)* data.Dmat.transpose()
         
-        #[i,j,d] = sparse.find(abDmat)
         hessian = abDmat.todense()
         idx = 0
         for i in range(0, data.numX):
@@ -414,7 +435,6 @@ def evaluateHessian(x, lagrange, obj_factor, flag, user_data = None):
                 values[idx] = hessian[i,j]
                 idx += 1
     return(values)
-
 
 def eval_g(x, user_data= None):
            return array([], float_)
@@ -424,9 +444,11 @@ def eval_jac_g(x, flag, user_data = None):
         return ([ ], [])
     else:
         return array([ ])
-
+print('Preparation time took: ' + str(time.time()-start) + ' seconds')
+    
 ## IPOPT SOLUTION
 
+start = time.time()
 data.currentIntensities = np.zeros(data.numX)
 nvar = data.numX
 xl = np.zeros(data.numX)
@@ -434,8 +456,8 @@ xu = 2e19*np.ones(data.numX)
 m = 0
 gl = np.zeros(1)
 gu = 2e19*np.ones(1)
-g_L = numpy.array([], dtype=float)
-g_U = numpy.array([], dtype=float)
+g_L = np.array([], dtype=float)
+g_U = np.array([], dtype=float)
 nnzj = 0
 nnzh = int(data.numX * (data.numX + 1) / 2)
 
@@ -448,6 +470,7 @@ nlp.str_option('mu_oracle', 'probing')
 nlp.str_option('linear_solver', 'ma97')
 nlp.num_option('acceptable_tol', 1e-1)
 x, zl, zu, constraint_multipliers, obj, status = nlp.solve(data.currentIntensities)
+print('solved in ' + str(time.time()-start) + ' seconds')
 
 # PYTHON scipy.optimize solution
 
@@ -455,4 +478,43 @@ x, zl, zu, constraint_multipliers, obj, status = nlp.solve(data.currentIntensiti
 # data.currentIntensities = np.zeros(data.numX)
 # res = minimize(calcObjGrad, data.currentIntensities,method='L-BFGS-B', jac = True, bounds=[(0, None) for i in range(0, len(data.currentIntensities))], options={'ftol':1e-6,'disp':5})
 
+# Print results
 
+
+numzvectors = 1
+maskValueFull = [int(i) for i in maskValueFull]
+maskValueFull = np.array(maskValueFull)
+print('Starting to Print Results')
+for i in range(0, numzvectors):
+    zvalues = data.currentDose
+    maxDose = max([float(i) for i in zvalues])
+    dose_resln = 0.1
+    dose_ub = maxDose + 10
+    bin_center = np.arange(0,dose_ub,dose_resln)
+    # Generate holder matrix
+    dvh_matrix = np.zeros((data.numstructs, len(bin_center)))
+    lenintervalhalf = bin_center[1]/2
+    # iterate through each structure
+    for s in range(0,data.numstructs):
+        allNames[s] = allNames[s].replace("_VOILIST.mat", "")
+        #print('determining DVH for ' + pickstructs[s])
+        print('dvh for structure' + str(s))
+        doseHolder = zvalues[[i for i,v in enumerate(maskValueFull & 2**s) if v > 0]]
+        if 0 == len(doseHolder):
+            continue
+        histHolder = []
+        for i in bin_center:
+            histHolder.append(sum(doseHolder < (i - lenintervalhalf)))
+        dvhHolder = 1-(np.matrix(histHolder)/max(histHolder))
+        dvh_matrix[s,] = dvhHolder
+        
+data.targets = [int(float(i)) for i in data.targets[0:6]]
+alt = dvh_matrix[data.targets,]
+plt.grid(True)
+plt.legend([allNames[i] for i in data.targets])
+
+pylab.plot(bin_center, alt.T, linewidth = 2.0)
+pylab.plot(bin_center, dvh_matrix.T, linewidth = 2.0)
+plt.grid(True)
+allNames.reverse()
+plt.legend(allNames)

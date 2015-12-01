@@ -231,7 +231,7 @@ print('Masking has been calculated')
 
 gastart = 0 ;
 gaend = 356;
-gastep = degreesep;
+gastep = 60;
 castart = 0;
 caend = 0;
 castep = 0;
@@ -441,15 +441,15 @@ def eval_g(x, user_data= None):
 
 def eval_jac_g(x, flag, user_data = None):
     if flag:
-        return ([ ], [])
+        return ([], [])
     else:
-        return array([ ])
+        return array([])
+
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')
     
 ## IPOPT SOLUTION
 
 start = time.time()
-data.currentIntensities = np.zeros(data.numX)
 nvar = data.numX
 xl = np.zeros(data.numX)
 xu = 2e19*np.ones(data.numX)
@@ -462,24 +462,25 @@ nnzj = 0
 nnzh = int(data.numX * (data.numX + 1) / 2)
 
 nlp = pyipopt.create(nvar, xl, xu, m, g_L, g_U, nnzj, nnzh, evaluateFunction, evaluateGradient, eval_g, eval_jac_g, evaluateHessian)
-data.currentIntensities = np.zeros(data.numX)
-nlp.num_option('tol', 1e-3)
+nlp.num_option('tol', 1e-5)
+nlp.int_option("print_level", 5)
 nlp.str_option('hessian_approximation', 'limited-memory')
 nlp.str_option('mu_strategy', 'adaptive')
 nlp.str_option('mu_oracle', 'probing')
 nlp.str_option('linear_solver', 'ma97')
-nlp.num_option('acceptable_tol', 1e-1)
+nlp.num_option('acceptable_tol', 1e-2)
+nlp.int_option("acceptable_iter", 5)
+nlp.num_option('acceptable_obj_change_tol', 5e-1)
+mylines = [float(myline) for myline in [line.rstrip('\n') for line in open('/home/wilmer/Dropbox/IpOptSolver/currentIntensities.txt')]]
+data.currentIntensities = np.array(mylines)
 x, zl, zu, constraint_multipliers, obj, status = nlp.solve(data.currentIntensities)
 print('solved in ' + str(time.time()-start) + ' seconds')
 
 # PYTHON scipy.optimize solution
 
 # find initial location
-# data.currentIntensities = np.zeros(data.numX)
-# res = minimize(calcObjGrad, data.currentIntensities,method='L-BFGS-B', jac = True, bounds=[(0, None) for i in range(0, len(data.currentIntensities))], options={'ftol':1e-6,'disp':5})
-
+# res = minimize(calcObjGrad, data.currentIntensities,method='L-BFGS-B', jac = True, bounds=[(0, None) for i in range(0, len(data.currentIntensities))], options={'ftol':1e-3,'disp':5,'maxiter':1000,'gtol':1e-3})
 # Print results
-
 
 numzvectors = 1
 maskValueFull = [int(i) for i in maskValueFull]
@@ -507,14 +508,56 @@ for i in range(0, numzvectors):
             histHolder.append(sum(doseHolder < (i - lenintervalhalf)))
         dvhHolder = 1-(np.matrix(histHolder)/max(histHolder))
         dvh_matrix[s,] = dvhHolder
-        
-data.targets = [int(float(i)) for i in data.targets[0:6]]
-alt = dvh_matrix[data.targets,]
-plt.grid(True)
-plt.legend([allNames[i] for i in data.targets])
 
-pylab.plot(bin_center, alt.T, linewidth = 2.0)
+  
 pylab.plot(bin_center, dvh_matrix.T, linewidth = 2.0)
 plt.grid(True)
-allNames.reverse()
-plt.legend(allNames)
+
+plt.xlabel('Dose Gray')
+plt.ylabel('Fractional Volume')
+plt.title('pyipopt 6 beams')
+
+## special organs to plot
+dvhmatrixsafe = dvh_matrix
+
+
+dvh_matrix = dvhmatrixsafe
+voitoplot = [18, 23, 17, 2, 8]
+dvhsub = dvh_matrix[voitoplot,] 
+pylab.plot(bin_center, dvhsub.T, linewidth = 2.0)
+
+numstructs = 25
+dosefile = "/home/wilmer/Dropbox/IpOptSolver/currentDose.txt"
+zvalues = [ float(line.rstrip('\n'))  for line in open(dosefile)]
+maskvaluefile = "/home/wilmer/Dropbox/IpOptSolver/currentMaskValue.txt"
+maskValueF = [ int(line.rstrip('\n'))  for line in open(maskvaluefile)]
+maskValue = np.array(maskValueF)
+
+maxDose = max([i for i in zvalues])
+dose_resln = 0.1
+dose_ub = maxDose + 10
+bin_center = np.arange(0, dose_ub, dose_resln)
+dvh_matrix = np.zeros((numstructs, len(bin_center)))
+lenintervalhalf = bin_center[1]/2
+i=0
+
+for s in range(0, numstructs):
+    a = [i for i,v in enumerate(maskValue & 2**s) if v > 0]
+    doseHolder = [zvalues[i] for i in a]
+    if 0 == len(doseHolder):
+        continue
+    histHolder = []
+    for i in bin_center:
+        histHolder.append(sum(doseHolder < (i - lenintervalhalf)))
+    dvhHolder = 1-(np.matrix(histHolder) / max(histHolder))
+    dvh_matrix[s,] = dvhHolder
+
+#pylab.plot(bin_center, alt.T, linewidth = 2.0)
+dvhsub2 = dvh_matrix[voitoplot,]
+pylab.plot(bin_center, dvhsub2.T, linewidth = 1.0, linestyle = '--', color = ['r', 'b', 'g', 'k', 'm'])
+plt.grid(True)
+
+plt.xlabel('Dose Gray')
+plt.ylabel('Fractional Volume')
+plt.title('ipopt 6 beams')
+

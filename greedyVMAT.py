@@ -17,6 +17,7 @@ import scipy.io as sio
 from scipy import sparse
 from scipy.optimize import minimize
 import time
+import math
 
 # First of all make sure that I can read the data
 
@@ -63,7 +64,7 @@ class region:
         self.fullIndices = ifullindi
         self.target = itarget
 
-class imrt_class:
+class vmat_class:
     # constants particular to the problem
     numX = 0 # num beamlets
     numvoxels = int() #num voxels (small voxel space)
@@ -100,18 +101,28 @@ class imrt_class:
     # dose variables
     currentDose = [] # dose variable
     currentIntensities = []
-
+    
+    caligraphicC = []
+    # this is the intersection of all beamlets that I am dealing with
+    xinter = []
+    yinter = []
+    xdirection = []
+    ydirection = []
+    
     # data class function
     def calcDose(self, newIntensities):
         self.currentIntensities = newIntensities
-        self.currentDose = self.Dmat.transpose() * newIntensities
-    
+        # self.currentDose = self.Dmat.transpose() * newIntensities
+        self.currentDose = np.zeros()
+        for i in self.caligraphicC:
+            self.currentDose += Dlist[i] * np.repeat(self.currentIntensities[i], Dlist[i].shape[1], axis = 0)
+
     # default constructor
     def __init__(self):
         self.numX = 0
 
 ########## END OF CLASS DECLARATION ###########################################
-data = imrt_class()
+data = vmat_class()
 
 # Function definitions
 ####################################################################
@@ -238,6 +249,8 @@ castep = 0;
 ga=[];
 ca=[];
 
+## Treatment of BEAMINFO data
+
 os.chdir(readfolderD)
 for g in range(gastart, gaend, gastep):
     fname = 'Gantry' + str(g) + '_Couch' + str(0) + '_D.mat'
@@ -245,6 +258,7 @@ for g in range(gastart, gaend, gastep):
     if os.path.isfile(fname) and os.path.isfile(bletfname):
         ga.append(g)
         ca.append(0)
+
 
 print('There is enough data for ' + str(len(ga)) + ' beam angles\n')
 
@@ -269,6 +283,8 @@ data.numbeams = len(ga)
 data.beamNumPerBeam = np.empty(data.numbeams, dtype=int)
 data.beamletsPerBeam = np.empty(data.numbeams, dtype=int)
 data.dijsPerBeam = np.empty(data.numbeams, dtype=int)
+data.xdirection = []
+data.ydirection =[]
 beamletCounter = np.zeros(data.numbeams + 1)
 
 for i in range(0, data.numbeams):
@@ -277,11 +293,31 @@ for i in range(0, data.numbeams):
     binfoholder = sio.loadmat(bletfname)
 
     # Get dose information as in the cpp file
-    data.beamNumPerBeam[i] = 10 * int(i) # WILMER. Find out why!!!
+    # data.beamNumPerBeam[i] = 10 * int(i) # WILMER. Find out why!!!
     data.beamletsPerBeam[i] = int(binfoholder['numBeamlets'])
     data.dijsPerBeam[i] =  int(binfoholder['numberNonZerosDij'])
+    data.xdirection.append(binfoholder['x'][0])
+    data.ydirection.append(binfoholder['y'][0])
+    if 0 == i:
+        data.xinter = data.xdirection[0]
+        data.yinter = data.ydirection[0]
+    else:
+        data.xinter = np.intersect1d(data.xinter, data.xdirection[i])
+        data.yinter = np.intersect1d(data.yinter, data.ydirection[i])
+    
     beamletCounter[i+1] = beamletCounter[i] + data.beamletsPerBeam[i]
+## After reading the beaminfo information. Read CUT the data.
 
+for i in range(0, data.numbeams):
+    for i in range(0, len(data.xdirection[i])):
+        data.xdirection[i] data.xinter 
+
+    
+###################################################
+
+
+## Initial intensities are allocated a value of zero.
+data.currentIntensities = np.zeros(data.numbeams, dtype=float)
 
 # Generating dose matrix dimensions
 data.numX = sum(data.beamletsPerBeam)
@@ -291,6 +327,7 @@ data.Dmat = sparse.csr_matrix((data.numX, data.numvoxels), dtype=float)
 
 # Work with the D matrices for each beam angle
 overallDijsCounter = 0
+Dlist = []
 for i in range(0, data.numbeams):
     fname = 'Gantry' + str(ga[i]) + '_Couch' + str(0) + '_D.mat'
     print('Processing matrix from gantry & couch angle: ' + fname)
@@ -299,24 +336,13 @@ for i in range(0, data.numbeams):
     # write out bixel sorted binary file
     [b,j,d] = sparse.find(D)
     newb = originalVoxels[b]
-    data.nnz_jac_g += len(b)
-    nBPB[i] = max(j)
-    nDIJSPB[i] = len(d)
-
+    
     # write out voxel sorted binary file
     [jt,bt,dt] = sparse.find(D.transpose())
     newbt = originalVoxels[bt]
-    # Notice here that python is smart enough to subtract 1 from matlab's mat
-    # files (where the index goes). This was confirmed by Wilmer on 10/19/2015
-    tempsparse=sparse.csr_matrix((dt,(jt + beamletCounter[i], newbt)),
-                                 shape=(data.numX, data.numvoxels), dtype=float)
-    data.Dmat = data.Dmat + tempsparse
+    # For each matrix D, store its values in a list
+    Dlist.append(D)
 
-    ## Can I erase the below part?
-    beamlog = np.ones(len(ga))
-    nBeams = len(ga)
-    nBeamlets = np.zeros(nBeams)
-    rowCumSum = []
 print('Finished reading D matrices')
 
 ## Read in the objective file:
@@ -335,7 +361,6 @@ print("Finished reading algorithm inputs file:\n" + algfile)
 
 # resize dose and beamlet vectors
 data.currentDose = np.zeros(data.numvoxels)
-
 ####################################
 ### FINISHED READING EVERYTHING ####
 ####################################
@@ -351,7 +376,6 @@ for s in range(0, data.numstructs):
         functionData[2,s] = functionData[2,s] * 1 / data.regions[s].sizeInVoxels
 
 # initialize helper variables
-
 quadHelperThresh = np.zeros(data.numvoxels)
 quadHelperOver = np.zeros(data.numvoxels)
 quadHelperUnder = np.zeros(data.numvoxels)
@@ -365,6 +389,133 @@ for s in range(0, data.numstructs):
         quadHelperThresh[int(data.regions[s].indices[j])] = functionData[0][s]
         quadHelperOver[int(data.regions[s].indices[j])] = functionData[1][s]
         quadHelperUnder[int(data.regions[s].indices[j])] = functionData[2][s]
+
+def PPsubroutine(C, C2, C3, angdistancem, angdistancep, vmax, speedlim, lcm, lcp, rcm, rcp, N, M):
+    # C, C2, C3 are constants in the penalization function
+    # angdistancem = $\delta_{c^-c}$
+    # angdistancep = $\delta_{cc^+}$
+    # vmax = maximum leaf speed
+    # speedlim = s
+    # lcm = vector of left limits in the previous aperture
+    # lcp = vector of left limits in the next aperture
+    # rcm = vector of left limits in the previous aperture
+    # rcm = vector of right limits in the previous aperture
+    # N = Number of beamlets per row
+    # M = Number of rows in an aperture
+    
+    networkNodes = []
+    networkArcs = [] # contains pair of elements that it connects and weight
+    flagposition = 0
+    nodesinpreviouslevel = 0
+    # Start with arcs that go from the source to level m = 1
+    # Create source node
+    networkNodes.append([0, 0, 0, 0, 0]) # m, l, r, distance, predecesor
+    boundaries = []
+    minweight = math.inf
+    for l in range(math.ceil(max(0, lcm[0] - vmax * angdistancem/speedlim, lcp[0] - vmax * angdistancep / speedlim)), math.floor(min(N, lcm[0] + vmax * angdistancem / speedlim, lcp[0] + vmax * angdistancep / speedlim))):
+        for r in range(math.ceil(max(l + 1, rcm[0] - vmax * angdistancem/speedlim, rcp[0] - vmax * angdistancep / speedlim)), math.floor(min(N+1, rcm[0] + vmax * angdistancem / speedlim, rcp[0] + vmax * angdistancep / speedlim))):
+            # Create arc from source to (1, l, r) and assign a vector weight to it.
+            # First I have to make sure to add the beamlets that I am interested in
+            Dose = sum(D[range(l,r),:] * data.mygradient)
+            weight = C * (C2 * (r - l) - C3 * b * (r - l) - Dose)
+            networkArcs.append([1, len(networkNodes), weight])
+            # Create node (1,l,r) in array of existing nodes
+            networkNodes.append([1, l, r, weight, 0])
+            # Find the least element in the weight list.
+            if (weight < minweight):
+                minweight = weight
+                bl = l
+                br = r
+            boundaries.append([bl, br])
+            flagposition = flagposition + 1
+            nodesinpreviouslevel = nodesinpreviouslevel + 1
+
+    for m in range(2,M):
+        flagnewlevel = 0
+        for l in range(math.ceil(max(0, lcm[0] - vmax * angdistancem/speedlim, lcp[0] - vmax * angdistancep / speedlim)), math.floor(min(N, lcm[0] + vmax * angdistancem / speedlim, lcp[0] + vmax * angdistancep / speedlim))):
+            for r in range(math.ceil(max(l + 1, rcm[0] - vmax * angdistancem/speedlim, rcp[0] - vmax * angdistancep / speedlim)), math.floor(min(N+1, rcm[0] + vmax * angdistancem / speedlim, rcp[0] + vmax * angdistancep / speedlim))):
+                flagnewlevel = flagnewlevel + 1
+                # Create node (m, l, r)
+                networkNodes.append(m, l, r, math.inf, 0)
+                thisnode = len(networkNodes)
+                for mynode in (range(flagposition - nodesinpreviouslevel, flagposition)):
+                    # Create arc from (m-1, l, r) to (m, l, r). And assign weight
+                    lambdaletter = math.fabs(networkNodes[mynode][1] - l) + math.fabs(networkNodes[mynode][2] - r) - 2 * max(0, networkNodes[mynode][1] - r) - 2 * max(0, l - math.fabs(networkNodes[mynode][2]))
+                    lmlimit = l + ((m - 1) * N)                    
+                    rm = r + ((m - 1) * N)
+                    Dose = sum(D[range(lmlimit, rm),:] * data.mygradient)
+                    weight = C(C2 * lambdaletter - C3 * b * (rm - lmlimit)) - sum(D[range(l,r),:] * data.nablaF)
+                    if(networkNodes[mynode][3] + weight < networkNodes[thisnode]):
+                        networkNodes[thisnode][3] = networkNodes[mynode][3] + weight
+                        # And next we look for the minimum distance.
+                        networkNodes[thisnode][4] = mynode
+        flagpositiion = flagnewlevel + flagposition
+        nodesinpreviouslevel = flagnewlevel
+    
+    # And last. Add the arcs to the sink
+    networkNodes.append([M + 1, 0, 0, math.Inf, 0])
+    thisnode = len(networkNodes)
+    for mynode in (range(flagposition - nodesinpreviouslevel, flagposition)):
+        weight = C * ( C2 * (r - l))
+        if(networkNodes[mynode][3] + weight <= networkNodes[thisnode]):
+            networkNodes[mynode][3] = networkNodes[mynode][3] + weight
+            networkNodes[mynode][4] = mynode
+            p = networkNodes[mynode][3]
+
+    # return set of left and right limits
+    thenode = len(networkNodes)
+    l = []
+    r = []
+    while(1):
+        # Find the predecessor
+        thenode = networkNodes[thenode][4]
+        l.append(networkNodes[thenode][1])
+        r.append(networkNodes[thenode][2])
+        
+    return(p, reversed(l), reversed(r))
+
+def solveRMC():
+    
+def colGen():
+    data.caligraphicC = []
+    notinC = range(0, len(Dlist))
+    zlist = np.zeros(len(Dlist))
+    iflag = 0
+    pstar = math.inf
+    for i in notinC:
+        p, l, r = PPsubroutine(C, C2, C3, angdistancem, angdistancep, vmax, speedlim, lcm, lcp, rcm, rcp, N, M)
+        if p < pstar:
+            pstar = p
+            iflag = i
+        if pstar > 0:
+            data.caligraphicC.append(iflag)
+            solveRMC
+
+Clist = []
+Alist = range(1, 360 / degreesep)
+z = 0
+for aperture in set(Alist) - set(Clist):
+    
+def evaluateFG(x, user_data=None):
+    data.calcDose(x)
+    
+    oDoseObj = data.currentDose - quadHelperThresh
+    oDoseObjCl = (oDoseObj > 0) * oDoseObj
+    oDoseObj = (oDoseObj > 0) * oDoseObj
+    oDoseObj = oDoseObj * oDoseObj * quadHelperOver
+    
+    uDoseObj = quadHelperThresh - data.currentDose
+    uDoseObjCl = (uDoseObj > 0) * uDoseObj
+    uDoseObj = (uDoseObj > 0) * uDoseObj
+    uDoseObj = uDoseObj * uDoseObj * quadHelperUnder
+    objectiveValue = sum(oDoseObj + uDoseObj)
+    
+    oDoseObjGl = 2 * oDoseObjCl * quadHelperOver
+    uDoseObjGl = 2 * uDoseObjCl * quadHelperUnder
+    # Wilmer. Is this right?
+    data.mygradient = 2 * (oDoseObjGl - uDoseObjGl)
+    
+    return(objectiveValue)
 
 def evaluateFunction(x, user_data= None):
     data.calcDose(x)
@@ -475,7 +626,7 @@ nlp.num_option('acceptable_obj_change_tol', 5e-1)
 mylines = [float(myline) for myline in [line.rstrip('\n') for line in open('/home/wilmer/Dropbox/IpOptSolver/currentIntensities.txt')]]
 data.currentIntensities = np.array(mylines)
 x, zl, zu, constraint_multipliers, obj, status = nlp.solve(data.currentIntensities)
-print('solved in ' + str(time.time()-start) + ' seconds')
+print('solved in ' + str(time.time() - start) + ' seconds')
 
 # PYTHON scipy.optimize solution
 
@@ -521,9 +672,10 @@ plt.title('pyipopt 6 beams')
 ## special organs to plot
 dvhmatrixsafe = dvh_matrix
 
+
 dvh_matrix = dvhmatrixsafe
 voitoplot = [18, 23, 17, 2, 8]
-dvhsub = dvh_matrix[voitoplot,]
+dvhsub = dvh_matrix[voitoplot,] 
 pylab.plot(bin_center, dvhsub.T, linewidth = 2.0)
 
 numstructs = 25
@@ -554,9 +706,10 @@ for s in range(0, numstructs):
 
 #pylab.plot(bin_center, alt.T, linewidth = 2.0)
 dvhsub2 = dvh_matrix[voitoplot,]
-pylab.plot(bin_center, dvhsub2.T, linewidth = 1.0, linestyle = '--')
+pylab.plot(bin_center, dvhsub2.T, linewidth = 1.0, linestyle = '--', color = ['r', 'b', 'g', 'k', 'm'])
 plt.grid(True)
 
 plt.xlabel('Dose Gray')
 plt.ylabel('Fractional Volume')
 plt.title('ipopt 6 beams')
+

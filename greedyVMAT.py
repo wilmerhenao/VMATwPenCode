@@ -304,15 +304,8 @@ for i in range(0, data.numbeams):
     else:
         data.xinter = np.intersect1d(data.xinter, data.xdirection[i])
         data.yinter = np.intersect1d(data.yinter, data.ydirection[i])
-    
-    beamletCounter[i+1] = beamletCounter[i] + data.beamletsPerBeam[i]
 ## After reading the beaminfo information. Read CUT the data.
 
-for i in range(0, data.numbeams):
-    for i in range(0, len(data.xdirection[i])):
-        data.xdirection[i] data.xinter 
-
-    
 ###################################################
 
 
@@ -344,6 +337,25 @@ for i in range(0, data.numbeams):
     Dlist.append(D)
 
 print('Finished reading D matrices')
+
+### Here I begin the matrix cut
+
+for i in range(0, data.numbeams):
+    # ininter will contain the elements that belong in the intersection of all beamlets
+    ininter = []
+    for j in range(0, len(data.xdirection[i])):
+        if (data.xdirection[i][j] in data.xinter and data.ydirection[i][j] in data.yinter):
+            ininter.append(j)
+
+    # Once I have ininter I will cut all the elements that are
+    data.xdirection[i] = data.xdirection[i][ininter]
+    data.ydirection[i] = data.ydirection[i][ininter]
+
+    Dlist[i] = Dlist[i][:,ininter]
+    data.beamletsPerBeam[i] = len(ininter)
+    beamletCounter[i+1] = beamletCounter[i] + data.beamletsPerBeam[i]
+
+#### MATRIX CUT DONE Here all matrices are working with the same limits
 
 ## Read in the objective file:
 lines = [myline.split('\t') for myline in [line.rstrip('\n') for line in open(objfile)]]
@@ -475,6 +487,17 @@ def PPsubroutine(C, C2, C3, angdistancem, angdistancep, vmax, speedlim, lcm, lcp
     return(p, reversed(l), reversed(r))
 
 def solveRMC():
+    
+    data.numX = sum(data.beamletsPerBeam)
+    data.Dmat = sparse.csr_matrix((data.numX, data.numvoxels), dtype=float)
+    for i in range(0, data.numbeams):
+        [jt,bt,dt] = sparse.find(Dlist[i].transpose())
+        newbt = originalVoxels[bt]
+        # Notice here that python is smart enough to subtract 1 from matlab's mat
+        # files (where the index goes). This was confirmed by Wilmer on 10/19/2015
+        tempsparse=sparse.csr_matrix((dt,(jt + beamletCounter[i], newbt)),
+                                    shape=(data.numX, data.numvoxels), dtype=float)
+        data.Dmat = data.Dmat + tempsparse
     
 def colGen():
     data.caligraphicC = []

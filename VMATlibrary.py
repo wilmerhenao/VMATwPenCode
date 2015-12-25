@@ -1,13 +1,15 @@
 
 
 import glob, os
-import pyipopt
+#import pyipopt
 import numpy as np
 import scipy.io as sio
 from scipy import sparse
 from scipy.optimize import minimize
 import time
 import math
+
+print('read here')
 
 class region:
     """ Contains all information relevant to a particular region"""
@@ -51,8 +53,8 @@ class vmat_class:
     voxelAssignment = []
     
     # varios folders
-    outputDirectory = outputfolder # given by the user in the first lines of *.py
-    dataDirectory = readfolder
+    outputDirectory = ""# given by the user in the first lines of *.py
+    dataDirectory = ""
 
     # dose variables
     currentDose = [] # dose variable
@@ -71,10 +73,10 @@ class vmat_class:
 
     mygradient = []
     # data class function
-    def calcDose(self, newIntensities):
-        self.currentIntensities = newIntensities
+    def calcDose(self):
+        print('entre')
         # self.currentDose = self.Dmat.transpose() * newIntensities
-        self.currentDose = np.zeros()
+        self.currentDose = np.zeros(251897, dtype = float)
         for i in self.caligraphicC:
             ThisDlist = Dlist[i]
             for m in range(0, llist[i]):

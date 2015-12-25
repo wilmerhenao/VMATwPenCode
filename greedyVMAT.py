@@ -21,7 +21,6 @@ import math
 
 from VMATlibrary import *
 
-
 readfolder = '/home/wilmer/Documents/Troy_BU/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'

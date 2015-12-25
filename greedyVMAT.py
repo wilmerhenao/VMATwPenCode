@@ -19,13 +19,8 @@ from scipy.optimize import minimize
 import time
 import math
 
-# First of all make sure that I can read the data
+from VMATlibrary import *
 
-# In the data directory with the *VOILIST.mat files, this opens up
-# each structure file and reads in the structure names and sizes in
-# voxels
-
-start = time.time()
 
 readfolder = '/home/wilmer/Documents/Troy_BU/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
@@ -49,79 +44,13 @@ for thisline in mylines:
             catemp.append(a)
             gatemp.append(b)
 
-class region:
-    """ Contains all information relevant to a particular region"""
-    index = int()
-    sizeInVoxels = int()
-    indices = np.empty(1, dtype=int)
-    fullIndices = np.empty(1,dtype=int)
-    target = False
-    # Class constructor
-    def __init__(self, iind, iindi, ifullindi, itarget):
-        self.index = iind
-        self.sizeInVoxels = len(iindi)
-        self.indices = iindi
-        self.fullIndices = ifullindi
-        self.target = itarget
+# First of all make sure that I can read the data
 
-class vmat_class:
-    # constants particular to the problem
-    numX = 0 # num beamlets
-    numvoxels = int() #num voxels (small voxel space)
-    numstructs = 0 # num of structures/regions
-    numoars = 0 # num of organs at risk
-    numtargets = 0 # num of targets
-    numbeams = 0 # num of beams
-    totaldijs = 0 # num of nonzeros in Dij matrix
-    nnz_jac_g = 0
+# In the data directory with the *VOILIST.mat files, this opens up
+# each structure file and reads in the structure names and sizes in
+# voxels
 
-    # vectors
-    beamNumPerBeam = [] # beam index per beam (for reading in individual beams)
-    beamletsPerBeam = [] # number of beamlets per beam 
-    dijsPerBeam = [] # number of nonzeroes in Dij per beam
-    maskValue = [] #non-overlapping mask value per voxel
-    fullMaskValue = [] # complete mask value per voxel
-    regionIndices = [] # index values of structures in region list (should be 0,1,etc)
-    targets = [] # region indices of structures (from region vector)
-    oars = [] # region indices of oars
-    regions = [] # vector of regions (holds structure information)
-    objectiveInputFiles = [] # vector of data input files for objectives
-    constraintInputFiles = [] # vector of data input files for constraints
-    algOptions = [] # vector of data input for algorithm options
-    functionData = []
-    voxelAssignment = []
-
-    # big D matrix
-    Dmat = sparse.csr_matrix((1,1), dtype=float) # sparse Dij matrix
-    
-    # varios folders
-    outputDirectory = outputfolder # given by the user in the first lines of *.py
-    dataDirectory = readfolder
-
-    # dose variables
-    currentDose = [] # dose variable
-    currentIntensities = []
-    
-    caligraphicC = []
-    # this is the intersection of all beamlets that I am dealing with
-    xinter = []
-    yinter = []
-    xdirection = []
-    ydirection = []
-    
-    # data class function
-    def calcDose(self, newIntensities):
-        self.currentIntensities = newIntensities
-        # self.currentDose = self.Dmat.transpose() * newIntensities
-        self.currentDose = np.zeros()
-        for i in self.caligraphicC:
-            self.currentDose += Dlist[i] * np.repeat(self.currentIntensities[i], Dlist[i].shape[1], axis = 0)
-
-    # default constructor
-    def __init__(self):
-        self.numX = 0
-
-########## END OF CLASS DECLARATION ###########################################
+start = time.time()
 data = vmat_class()
 
 # Function definitions
@@ -259,7 +188,6 @@ for g in range(gastart, gaend, gastep):
         ga.append(g)
         ca.append(0)
 
-
 print('There is enough data for ' + str(len(ga)) + ' beam angles\n')
 
 # build new sparse matrices
@@ -267,8 +195,6 @@ print('There is enough data for ' + str(len(ga)) + ' beam angles\n')
 # This code translates the sparse dose matrices from big voxel space to
 # small voxel space and writes it out to a binary file to be used in the
 # optimization
-
-# nBPB is the  number of beamlets per beam
 nBPB = np.zeros(len(ga))
 # nDIJSPB is the number of nonzeros in the Dmatrix for each beam
 nDIJSPB = np.zeros(len(ga))
@@ -280,7 +206,6 @@ nDIJSPB = np.zeros(len(ga))
 data.numvoxels = nVox
 data.numbeams = len(ga)
 ## Allocate memory
-data.beamNumPerBeam = np.empty(data.numbeams, dtype=int)
 data.beamletsPerBeam = np.empty(data.numbeams, dtype=int)
 data.dijsPerBeam = np.empty(data.numbeams, dtype=int)
 data.xdirection = []
@@ -293,7 +218,6 @@ for i in range(0, data.numbeams):
     binfoholder = sio.loadmat(bletfname)
 
     # Get dose information as in the cpp file
-    # data.beamNumPerBeam[i] = 10 * int(i) # WILMER. Find out why!!!
     data.beamletsPerBeam[i] = int(binfoholder['numBeamlets'])
     data.dijsPerBeam[i] =  int(binfoholder['numberNonZerosDij'])
     data.xdirection.append(binfoholder['x'][0])
@@ -307,10 +231,8 @@ for i in range(0, data.numbeams):
 ## After reading the beaminfo information. Read CUT the data.
 
 ###################################################
-
-
 ## Initial intensities are allocated a value of zero.
-data.currentIntensities = np.zeros(data.numbeams, dtype=float)
+data.currentIntensities = np.zeros(data.numbeams, dtype = float)
 
 # Generating dose matrix dimensions
 data.numX = sum(data.beamletsPerBeam)
@@ -402,7 +324,31 @@ for s in range(0, data.numstructs):
         quadHelperOver[int(data.regions[s].indices[j])] = functionData[1][s]
         quadHelperUnder[int(data.regions[s].indices[j])] = functionData[2][s]
 
-def PPsubroutine(C, C2, C3, angdistancem, angdistancep, vmax, speedlim, lcm, lcp, rcm, rcp, N, M):
+def evaluateFunction(x, user_data= None):
+    data.calcDose(x)
+    oDoseObj = data.currentDose - quadHelperThresh
+    oDoseObj = (oDoseObj > 0) * oDoseObj
+    oDoseObj = oDoseObj * oDoseObj * quadHelperOver
+    uDoseObj = quadHelperThresh - data.currentDose
+    uDoseObj = (uDoseObj > 0) * uDoseObj
+    uDoseObj = uDoseObj * uDoseObj * quadHelperUnder
+    objectiveValue = sum(oDoseObj + uDoseObj)
+    return( objectiveValue )
+
+def evaluateGradient(x, user_data= None):
+    data.calcDose(x)
+    return(data.mygradient)
+
+def eval_g(x, user_data= None):
+           return array([], float_)
+
+def eval_jac_g(x, flag, user_data = None):
+    if flag:
+        return ([], [])
+    else:
+        return array([])
+
+def PPsubroutine(C, C2, C3, angdistancem, angdistancep, vmax, speedlim, lcm, lcp, rcm, rcp, N, M, index):
     # C, C2, C3 are constants in the penalization function
     # angdistancem = $\delta_{c^-c}$
     # angdistancep = $\delta_{cc^+}$
@@ -424,11 +370,14 @@ def PPsubroutine(C, C2, C3, angdistancem, angdistancep, vmax, speedlim, lcm, lcp
     networkNodes.append([0, 0, 0, 0, 0]) # m, l, r, distance, predecesor
     boundaries = []
     minweight = math.inf
+    D = Dlist[index]
+    print(D.shape)
+    print(data.mygradient)
     for l in range(math.ceil(max(0, lcm[0] - vmax * angdistancem/speedlim, lcp[0] - vmax * angdistancep / speedlim)), math.floor(min(N, lcm[0] + vmax * angdistancem / speedlim, lcp[0] + vmax * angdistancep / speedlim))):
         for r in range(math.ceil(max(l + 1, rcm[0] - vmax * angdistancem/speedlim, rcp[0] - vmax * angdistancep / speedlim)), math.floor(min(N+1, rcm[0] + vmax * angdistancem / speedlim, rcp[0] + vmax * angdistancep / speedlim))):
             # Create arc from source to (1, l, r) and assign a vector weight to it.
             # First I have to make sure to add the beamlets that I am interested in
-            Dose = sum(D[range(l,r),:] * data.mygradient)
+            Dose = sum( data.mygradient * D[:,[i for i in range(l,r)]])
             weight = C * (C2 * (r - l) - C3 * b * (r - l) - Dose)
             networkArcs.append([1, len(networkNodes), weight])
             # Create node (1,l,r) in array of existing nodes
@@ -455,7 +404,7 @@ def PPsubroutine(C, C2, C3, angdistancem, angdistancep, vmax, speedlim, lcm, lcp
                     lambdaletter = math.fabs(networkNodes[mynode][1] - l) + math.fabs(networkNodes[mynode][2] - r) - 2 * max(0, networkNodes[mynode][1] - r) - 2 * max(0, l - math.fabs(networkNodes[mynode][2]))
                     lmlimit = l + ((m - 1) * N)                    
                     rm = r + ((m - 1) * N)
-                    Dose = sum(D[range(lmlimit, rm),:] * data.mygradient)
+                    Dose = sum(data.mygradient * D[:,[i for i in range(lmlimit, rm)]])
                     weight = C(C2 * lambdaletter - C3 * b * (rm - lmlimit)) - sum(D[range(l,r),:] * data.nablaF)
                     if(networkNodes[mynode][3] + weight < networkNodes[thisnode]):
                         networkNodes[thisnode][3] = networkNodes[mynode][3] + weight
@@ -487,252 +436,95 @@ def PPsubroutine(C, C2, C3, angdistancem, angdistancep, vmax, speedlim, lcm, lcp
     return(p, reversed(l), reversed(r))
 
 def solveRMC():
-    
     data.numX = sum(data.beamletsPerBeam)
-    data.Dmat = sparse.csr_matrix((data.numX, data.numvoxels), dtype=float)
-    for i in range(0, data.numbeams):
-        [jt,bt,dt] = sparse.find(Dlist[i].transpose())
-        newbt = originalVoxels[bt]
-        # Notice here that python is smart enough to subtract 1 from matlab's mat
-        # files (where the index goes). This was confirmed by Wilmer on 10/19/2015
-        tempsparse=sparse.csr_matrix((dt,(jt + beamletCounter[i], newbt)),
-                                    shape=(data.numX, data.numvoxels), dtype=float)
-        data.Dmat = data.Dmat + tempsparse
+    ## IPOPT SOLUTION
+    start = time.time()
+    numbe = len(data.caligraphicC)
+    nvar = numbe
+    xl = np.zeros(numbe)
+    xu = 2e19*np.ones(numbe)
+    m = 0
+    gl = np.zeros(1)
+    gu = 2e19*np.ones(1)
+    g_L = np.array([], dtype=float)
+    g_U = np.array([], dtype=float)
+    nnzj = 0
+    nnzh = int(numbe * (numbe + 1) / 2)
+    
+    nlp = pyipopt.create(nvar, xl, xu, m, g_L, g_U, nnzj, nnzh, evaluateFunction,
+                         evaluateGradient, eval_g, eval_jac_g)
+    nlp.num_option('tol', 1e-5)
+    nlp.int_option("print_level", 5)
+    nlp.str_option('hessian_approximation', 'limited-memory')
+    nlp.str_option('mu_strategy', 'adaptive')
+    nlp.str_option('mu_oracle', 'probing')
+    nlp.str_option('linear_solver', 'ma97')
+    nlp.num_option('acceptable_tol', 1e-2)
+    nlp.int_option("acceptable_iter", 5)
+    nlp.num_option('acceptable_obj_change_tol', 5e-1)
+    data.currentIntensities = np.zeros(numbe)
+    x, zl, zu, constraint_multipliers, obj, status = nlp.solve(data.currentIntensities)
+    print('solved in ' + str(time.time() - start) + ' seconds')
     
 def colGen():
+    # User defined data
+    C = 1.0
+    C2 = 1.0
+    C3 = 1.0
+    angdistancem = 60
+    angdistancep = 60
+    vmax = 2.0
+    speedlim = 3.0
+    
     data.caligraphicC = []
     notinC = range(0, len(Dlist))
     zlist = np.zeros(len(Dlist))
     iflag = 0
     pstar = math.inf
-    for i in notinC:
-        p, l, r = PPsubroutine(C, C2, C3, angdistancem, angdistancep, vmax, speedlim, lcm, lcp, rcm, rcp, N, M)
-        if p < pstar:
-            pstar = p
-            iflag = i
-        if pstar > 0:
-            data.caligraphicC.append(iflag)
-            solveRMC
-
-Clist = []
-Alist = range(1, 360 / degreesep)
-z = 0
-for aperture in set(Alist) - set(Clist):
-    
-def evaluateFG(x, user_data=None):
-    data.calcDose(x)
-    
-    oDoseObj = data.currentDose - quadHelperThresh
-    oDoseObjCl = (oDoseObj > 0) * oDoseObj
-    oDoseObj = (oDoseObj > 0) * oDoseObj
-    oDoseObj = oDoseObj * oDoseObj * quadHelperOver
-    
-    uDoseObj = quadHelperThresh - data.currentDose
-    uDoseObjCl = (uDoseObj > 0) * uDoseObj
-    uDoseObj = (uDoseObj > 0) * uDoseObj
-    uDoseObj = uDoseObj * uDoseObj * quadHelperUnder
-    objectiveValue = sum(oDoseObj + uDoseObj)
-    
-    oDoseObjGl = 2 * oDoseObjCl * quadHelperOver
-    uDoseObjGl = 2 * uDoseObjCl * quadHelperUnder
-    # Wilmer. Is this right?
-    data.mygradient = 2 * (oDoseObjGl - uDoseObjGl)
-    
-    return(objectiveValue)
-
-def evaluateFunction(x, user_data= None):
-    data.calcDose(x)
-    oDoseObj = data.currentDose - quadHelperThresh
-    oDoseObj = (oDoseObj > 0) * oDoseObj
-    oDoseObj = oDoseObj * oDoseObj * quadHelperOver
-    uDoseObj = quadHelperThresh - data.currentDose
-    uDoseObj = (uDoseObj > 0) * uDoseObj
-    uDoseObj = uDoseObj * uDoseObj * quadHelperUnder
-    objectiveValue = sum(oDoseObj + uDoseObj)
-    return(objectiveValue)
-
-def evaluateGradient(x, user_data= None):
-    data.calcDose(x)
-    oDoseObj = data.currentDose - quadHelperThresh
-    uDoseObj = quadHelperThresh - data.currentDose
-    oDoseObjCl = (oDoseObj > 0) * oDoseObj
-    uDoseObjCl = (uDoseObj > 0) * uDoseObj
-    oDoseObjGl = oDoseObjCl * quadHelperOver
-    uDoseObjGl = uDoseObjCl * quadHelperUnder
-    my2gradient = data.Dmat * 2 * (oDoseObjGl - uDoseObjGl)
-    return(my2gradient)
-
-def calcObjGrad(x):
-    data.calcDose(x)
-    oDoseObj = data.currentDose - quadHelperThresh
-    oDoseObjCl = (oDoseObj > 0) * oDoseObj
-    oDoseObjGl = oDoseObjCl * oDoseObjCl * quadHelperOver
-    uDoseObj = quadHelperThresh - data.currentDose
-    uDoseObjCl = (uDoseObj > 0) * uDoseObj
-    uDoseObjGl = uDoseObjCl * uDoseObjCl * quadHelperUnder
-    objectiveValue = sum(oDoseObjGl + uDoseObjGl)
-    oDoseObjGl = oDoseObjCl * quadHelperOver
-    uDoseObjGl = uDoseObjCl * quadHelperUnder
-    mygradient = data.Dmat * 2 * (oDoseObjGl - uDoseObjGl)
-    return(objectiveValue, mygradient)
-
-def evaluateHessian(x, lagrange, obj_factor, flag, user_data = None):
-    if flag:
-        # Build helper array
-        data.calcDose(x)
-        values = np.zeros(int(data.numX * (data.numX + 1) / 2), float_)
-        #hessian = sparse.csr_matrix((data.numX, data.numX))
-        quadHelperAlphaBetas = (data.currentDose < quadHelperThresh) * 2 * quadHelperUnder
-        quadHelperAlphaBetas += (data.currentDose >= quadHelperThresh) * 2 * quadHelperOver
-        # generate Hessian using matrix multiplication
-        abDmat = obj_factor * data.Dmat *sparse.diags(quadHelperAlphaBetas, 0)* data.Dmat.transpose()
+    data.calcDose(data.currentIntensities)
+    # Assign left and right limits to the aperture
+    for i in range(0, data.numbeams):
+        data.llist.append(np.zeros(len(data.xinter)))
+        data.rlist.append(np.ones(len(data.xinter)) * len(data.yinter))
         
-        hessian = abDmat.todense()
-        idx = 0
-        for i in range(0, data.numX):
-            for j in range(0,i):
-                values[idx] = hessian[i,j]
-                idx += 1
-    else:
-        # Build helper array
-        data.calcDose(x)
-        values = np.zeros(int(data.numX * (data.numX + 1) / 2), float_)
-        #hessian = sparse.csr_matrix((data.numX, data.numX))
-        quadHelperAlphaBetas = (data.currentDose < quadHelperThresh) * 2 * quadHelperUnder
-        quadHelperAlphaBetas += (data.currentDose >= quadHelperThresh) * 2 * quadHelperOver
-        # generate Hessian using matrix multiplication
-        abDmat = obj_factor * data.Dmat *sparse.diags(quadHelperAlphaBetas, 0)* data.Dmat.transpose()
-        
-        hessian = abDmat.todense()
-        idx = 0
-        for i in range(0, data.numX):
-            for j in range(0,i):
-                values[idx] = hessian[i,j]
-                idx += 1
-    return(values)
-
-def eval_g(x, user_data= None):
-           return array([], float_)
-
-def eval_jac_g(x, flag, user_data = None):
-    if flag:
-        return ([], [])
-    else:
-        return array([])
+    for i in range(0, data.numbeams):
+        for j in notinC:
+            lcm = data.llist[0]
+            rcm = data.rlist[0]
+            lcp = data.llist[len(data.llist) - 1]
+            rcp = data.rlist[len(data.rlist) - 1]
+            ## Find largest smaller value in caligraphicC and smallest larger value.
+            if data.caligraphicC:
+                lcv = data.caligraphicC[data.caligraphicC < j]
+                scv = data.calibraphicC[data.caligraphicC > j]
+                mvalue = 0
+                pvalue = data.numbeams - 1
+                if lcv:
+                    mvalue = max(lcv)
+                    lcm = data.llist[mvalue]
+                    rcm = data.rlist[mvalue]
+                if scv:
+                    pvalue = min(scv)
+                    lcp = data.llist[pvalue]
+                    rcp = data.rlist[pvalue]
+                
+            N = len(data.yinter)
+            M = len(data.llist[j])
+            p, lm, rm = PPsubroutine(C, C2, C3, angdistancem, angdistancep, vmax, speedlim, lcm, lcp, rcm, rcp, N, M, j)
+            data.llist = lm
+            data.rlist = rm
+            if p < pstar:
+                pstar = p
+                iflag = i
+            if pstar > 0:
+                data.caligraphicC.append(iflag)
+                solveRMC()
 
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')
-    
-## IPOPT SOLUTION
 
-start = time.time()
-nvar = data.numX
-xl = np.zeros(data.numX)
-xu = 2e19*np.ones(data.numX)
-m = 0
-gl = np.zeros(1)
-gu = 2e19*np.ones(1)
-g_L = np.array([], dtype=float)
-g_U = np.array([], dtype=float)
-nnzj = 0
-nnzh = int(data.numX * (data.numX + 1) / 2)
-
-nlp = pyipopt.create(nvar, xl, xu, m, g_L, g_U, nnzj, nnzh, evaluateFunction, evaluateGradient, eval_g, eval_jac_g, evaluateHessian)
-nlp.num_option('tol', 1e-5)
-nlp.int_option("print_level", 5)
-nlp.str_option('hessian_approximation', 'limited-memory')
-nlp.str_option('mu_strategy', 'adaptive')
-nlp.str_option('mu_oracle', 'probing')
-nlp.str_option('linear_solver', 'ma97')
-nlp.num_option('acceptable_tol', 1e-2)
-nlp.int_option("acceptable_iter", 5)
-nlp.num_option('acceptable_obj_change_tol', 5e-1)
-mylines = [float(myline) for myline in [line.rstrip('\n') for line in open('/home/wilmer/Dropbox/IpOptSolver/currentIntensities.txt')]]
-data.currentIntensities = np.array(mylines)
-x, zl, zu, constraint_multipliers, obj, status = nlp.solve(data.currentIntensities)
-print('solved in ' + str(time.time() - start) + ' seconds')
-
+colGen()
 # PYTHON scipy.optimize solution
 
 # find initial location
 # res = minimize(calcObjGrad, data.currentIntensities,method='L-BFGS-B', jac = True, bounds=[(0, None) for i in range(0, len(data.currentIntensities))], options={'ftol':1e-3,'disp':5,'maxiter':1000,'gtol':1e-3})
 # Print results
-
-numzvectors = 1
-maskValueFull = [int(i) for i in maskValueFull]
-maskValueFull = np.array(maskValueFull)
-print('Starting to Print Results')
-for i in range(0, numzvectors):
-    zvalues = data.currentDose
-    maxDose = max([float(i) for i in zvalues])
-    dose_resln = 0.1
-    dose_ub = maxDose + 10
-    bin_center = np.arange(0,dose_ub,dose_resln)
-    # Generate holder matrix
-    dvh_matrix = np.zeros((data.numstructs, len(bin_center)))
-    lenintervalhalf = bin_center[1]/2
-    # iterate through each structure
-    for s in range(0,data.numstructs):
-        allNames[s] = allNames[s].replace("_VOILIST.mat", "")
-        #print('determining DVH for ' + pickstructs[s])
-        print('dvh for structure' + str(s))
-        doseHolder = zvalues[[i for i,v in enumerate(maskValueFull & 2**s) if v > 0]]
-        if 0 == len(doseHolder):
-            continue
-        histHolder = []
-        for i in bin_center:
-            histHolder.append(sum(doseHolder < (i - lenintervalhalf)))
-        dvhHolder = 1-(np.matrix(histHolder)/max(histHolder))
-        dvh_matrix[s,] = dvhHolder
-
-  
-pylab.plot(bin_center, dvh_matrix.T, linewidth = 2.0)
-plt.grid(True)
-
-plt.xlabel('Dose Gray')
-plt.ylabel('Fractional Volume')
-plt.title('pyipopt 6 beams')
-
-## special organs to plot
-dvhmatrixsafe = dvh_matrix
-
-
-dvh_matrix = dvhmatrixsafe
-voitoplot = [18, 23, 17, 2, 8]
-dvhsub = dvh_matrix[voitoplot,] 
-pylab.plot(bin_center, dvhsub.T, linewidth = 2.0)
-
-numstructs = 25
-dosefile = "/home/wilmer/Dropbox/IpOptSolver/currentDose.txt"
-zvalues = [ float(line.rstrip('\n'))  for line in open(dosefile)]
-maskvaluefile = "/home/wilmer/Dropbox/IpOptSolver/currentMaskValue.txt"
-maskValueF = [ int(line.rstrip('\n'))  for line in open(maskvaluefile)]
-maskValue = np.array(maskValueF)
-
-maxDose = max([i for i in zvalues])
-dose_resln = 0.1
-dose_ub = maxDose + 10
-bin_center = np.arange(0, dose_ub, dose_resln)
-dvh_matrix = np.zeros((numstructs, len(bin_center)))
-lenintervalhalf = bin_center[1]/2
-i=0
-
-for s in range(0, numstructs):
-    a = [i for i,v in enumerate(maskValue & 2**s) if v > 0]
-    doseHolder = [zvalues[i] for i in a]
-    if 0 == len(doseHolder):
-        continue
-    histHolder = []
-    for i in bin_center:
-        histHolder.append(sum(doseHolder < (i - lenintervalhalf)))
-    dvhHolder = 1-(np.matrix(histHolder) / max(histHolder))
-    dvh_matrix[s,] = dvhHolder
-
-#pylab.plot(bin_center, alt.T, linewidth = 2.0)
-dvhsub2 = dvh_matrix[voitoplot,]
-pylab.plot(bin_center, dvhsub2.T, linewidth = 1.0, linestyle = '--', color = ['r', 'b', 'g', 'k', 'm'])
-plt.grid(True)
-
-plt.xlabel('Dose Gray')
-plt.ylabel('Fractional Volume')
-plt.title('ipopt 6 beams')
-

@@ -19,14 +19,16 @@ from scipy.optimize import minimize
 import time
 import math
 
-readfolder = '/home/wilmer/Documents/Troy_BU/Data/DataProject/HN/'
+rootFolder = '/media/wilmer/datadrive'
+rootFolder = '/home/wilmer/Documents/Troy_BU'
+readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
 degreesep = 60 # How many degrees in between separating neighbor beams.
 objfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/objectives/obj1.txt'
 structurefile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/structureInputs.txt'
 algfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/algInputsWilmer.txt'
-mm3voxels = '/home/wilmer/Documents/Troy_BU/Data/DataProject/HN/hn3mmvoxels.mat'
+mm3voxels = rootFolder + '/Data/DataProject/HN/hn3mmvoxels.mat'
 # The 1 is subtracted at read time so the user doesn't have to do it everytime
 priority = [7, 24, 25, 23, 22, 21, 20, 16, 15, 14, 13, 12, 10, 11, 9, 4, 3, 1, 2, 17, 18, 19, 5, 6, 8]
 priority = (np.array(priority)-1).tolist()
@@ -369,7 +371,7 @@ for i in range(0, data.numbeams):
     data.xdirection[i] = data.xdirection[i][ininter]
     data.ydirection[i] = data.ydirection[i][ininter]
 
-    Dlist[i] = Dlist[i][:,ininter]
+    Dlist[i] = Dlist[i][ininter,:]
     data.beamletsPerBeam[i] = len(ininter)
     beamletCounter[i+1] = beamletCounter[i] + data.beamletsPerBeam[i]
 
@@ -455,9 +457,10 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
     # lcm = vector of left limits in the previous aperture
     # lcp = vector of left limits in the next aperture
     # rcm = vector of left limits in the previous aperture
-    # rcm = vector of right limits in the previous aperture
+    # rcp = vector of right limits in the previous aperture
     # N = Number of beamlets per row
     # M = Number of rows in an aperture
+    # index = index location in the set of apertures that I have saved.
     
     networkNodes = []
     networkArcs = [] # contains pair of elements that it connects and weight
@@ -466,23 +469,33 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
     # Start with arcs that go from the source to level m = 1
     # Create source node
     networkNodes.append([0, 0, 0, 0, 0]) # m, l, r, distance, predecesor
-    boundaries = []
-    minweight = math.inf
+    boundaries = [] # Contains the list of final boundaries.
+    minweight = float("inf")
     D = Dlist[index]
-    print(D.shape)
-    print(data.mygradient)
-    for l in range(math.ceil(max(0, lcm[0] - vmax * angdistancem/speedlim, lcp[0] - vmax * angdistancep / speedlim)), math.floor(min(N, lcm[0] + vmax * angdistancem / speedlim, lcp[0] + vmax * angdistancep / speedlim))):
-        for r in range(math.ceil(max(l + 1, rcm[0] - vmax * angdistancem/speedlim, rcp[0] - vmax * angdistancep / speedlim)), math.floor(min(N+1, rcm[0] + vmax * angdistancem / speedlim, rcp[0] + vmax * angdistancep / speedlim))):
-            # Create arc from source to (1, l, r) and assign a vector weight to it.
+
+    # Find geographical location of the first row.
+    geolocX = data.xinter[0]
+    # Find all possible locations of beamlets in this row according to geographical location
+    indys = np.where(geolocX == data.xdirection[0])
+    ys = data.ydirection[0][indys]
+    validbeamlets = np.in1d(data.yinter, ys) * range(0,len(data.yinter))
+    validbeamlets = validbeamlets[validbeamlets > 0]
+   
+    for l in range(math.ceil(max(min(validbeamlets)-1, lcm[0] - vmax * angdistancem/speedlim, lcp[0] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[0] + vmax * angdistancem / speedlim, lcp[0] + vmax * angdistancep / speedlim))):
+        for r in range(math.ceil(max(l + 1, rcm[0] - vmax * angdistancem/speedlim, rcp[0] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets)+1, rcm[0] + vmax * angdistancem / speedlim, rcp[0] + vmax * angdistancep / speedlim))):
+            
             # First I have to make sure to add the beamlets that I am interested in
-            Dose = sum( D[[i for i in range(l,r)],:] * data.mygradient)
-            weight = C * (C2 * (r - l) - C3 * b * (r - l) - Dose)
+            if(l + 1 <= r - 1):
+                Dose = sum( D[[i for i in range(l+1, r-1)],:] * data.mygradient)
+                weight = C * (C2 * (r - l) - C3 * b * (r - l) - Dose)
+            else:
+                Dose = 0.0
+                weight = 0.0
+            # Create arc from source to (1, l, r) and assign a vector weight to it.
             networkArcs.append([1, len(networkNodes), weight])
             # Create node (1,l,r) in array of existing nodes
             networkNodes.append([1, l, r, weight, 0])
             # Find the least element in the weight list.
-            #print("weight: ", weight)
-            #print("minweight: ", minweight)
             if (weight < minweight):
                 minweight = weight
                 bl = l
@@ -490,32 +503,41 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
             boundaries.append([bl, br])
             flagposition = flagposition + 1
             nodesinpreviouslevel = nodesinpreviouslevel + 1
-
+    mystart = time.time()
     for m in range(2,M):
         flagnewlevel = 0
-        for l in range(math.ceil(max(0, lcm[0] - vmax * angdistancem/speedlim, lcp[0] - vmax * angdistancep / speedlim)), math.floor(min(N, lcm[0] + vmax * angdistancem / speedlim, lcp[0] + vmax * angdistancep / speedlim))):
-            for r in range(math.ceil(max(l + 1, rcm[0] - vmax * angdistancem/speedlim, rcp[0] - vmax * angdistancep / speedlim)), math.floor(min(N+1, rcm[0] + vmax * angdistancem / speedlim, rcp[0] + vmax * angdistancep / speedlim))):
+        print("New row")
+        myend = time.time()
+        print(myend - mystart)
+        mystart = myend
+        for l in range(math.ceil(max(0, lcm[m] - vmax * angdistancem/speedlim, lcp[m] - vmax * angdistancep / speedlim)), math.floor(min(N, lcm[m] + vmax * angdistancem / speedlim, lcp[m] + vmax * angdistancep / speedlim))):
+            for r in range(math.ceil(max(l + 1, rcm[m] - vmax * angdistancem/speedlim, rcp[m] - vmax * angdistancep / speedlim)), math.floor(min(N+1, rcm[m] + vmax * angdistancem / speedlim, rcp[m] + vmax * angdistancep / speedlim))):
                 flagnewlevel = flagnewlevel + 1
                 # Create node (m, l, r)
-                networkNodes.append([m, l, r, math.inf, 0])
+                print("right now on node: ", m , l, r)
+                networkNodes.append([m, l, r, float("inf"), 0])
                 thisnode = len(networkNodes) - 1
+                lmlimit = l + ((m - 1) * N)
+                rmlimit = r + ((m - 1) * N)
+                Dose = sum(D[[i for i in range(lmlimit, rmlimit)],:] * data.mygradient)
+                #print("stage2andahalf")
+                #print("dimensions of D are:")
+                #mystart2 = time.time()
+                #pipart = sum(D[range(l,r),:] * data.mygradient)
+                #print("last operation took", time.time() - mystart2)
+                C3simplifier = C3 * b * (rmlimit - lmlimit)
                 for mynode in (range(flagposition - nodesinpreviouslevel, flagposition)):
                     # Create arc from (m-1, l, r) to (m, l, r). And assign weight
                     lambdaletter = math.fabs(networkNodes[mynode][1] - l) + math.fabs(networkNodes[mynode][2] - r) - 2 * max(0, networkNodes[mynode][1] - r) - 2 * max(0, l - math.fabs(networkNodes[mynode][2]))
-                    lmlimit = l + ((m - 1) * N)                    
-                    rm = r + ((m - 1) * N)
-                    Dose = sum(D[[i for i in range(lmlimit, rm)],:] * data.mygradient)
-                    weight = C*(C2 * lambdaletter - C3 * b * (rm - lmlimit)) - sum(D[range(l,r),:] * data.mygradient)
-                    
+                    weight = C * (C2 * lambdaletter - C3simplifier) - Dose
                     if(networkNodes[mynode][3] + weight < networkNodes[thisnode][3]):
                         networkNodes[thisnode][3] = networkNodes[mynode][3] + weight
                         # And next we look for the minimum distance.
                         networkNodes[thisnode][4] = mynode
-        flagpositiion = flagnewlevel + flagposition
+        flagposition = flagnewlevel + flagposition # This is the total number of network nodes
         nodesinpreviouslevel = flagnewlevel
-    
-    # And last. Add the arcs to the sink
-    networkNodes.append([M + 1, 0, 0, math.Inf, 0])
+    print("And last. Add the arcs to the sink")
+    networkNodes.append([M + 1, 0, 0, float("inf"), 0])
     thisnode = len(networkNodes)
     for mynode in (range(flagposition - nodesinpreviouslevel, flagposition)):
         weight = C * ( C2 * (r - l))
@@ -523,7 +545,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
             networkNodes[mynode][3] = networkNodes[mynode][3] + weight
             networkNodes[mynode][4] = mynode
             p = networkNodes[mynode][3]
-
+            
     # return set of left and right limits
     thenode = len(networkNodes)
     l = []
@@ -554,6 +576,7 @@ def solveRMC():
     
     #nlp = pyipopt.create(nvar, xl, xu, m, g_L, g_U, nnzj, nnzh, evaluateFunction,
     #                     evaluateGradient, eval_g, eval_jac_g)
+    print("estoy aqui")
     res = minimize(evaluateFunction, data.currentIntensities, method='Nelder-Mead', options={'ftol':1e-3,'disp':5,'maxiter':1000,'gtol':1e-3})
     nlp.num_option('tol', 1e-5)
     nlp.int_option("print_level", 5)
@@ -582,7 +605,7 @@ def colGen():
     notinC = range(0, len(Dlist))
     zlist = np.zeros(len(Dlist))
     iflag = 0
-    pstar = math.inf
+    pstar = float("inf")
     data.currentIntensities
     data.calcDose()
     # Assign left and right limits to the aperture
@@ -611,9 +634,10 @@ def colGen():
                     lcp = data.llist[pvalue]
                     rcp = data.rlist[pvalue]
                 
-            N = len(data.yinter)
-            M = len(data.llist[j])
+            N = len(data.yinter) #N will be related to the Y axis.
+            M = len(data.llist[j]) #M will be related to the X axis.
             p, lm, rm = PPsubroutine(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, lcm, lcp, rcm, rcp, N, M, j)
+            print("after pp subroutine")
             data.llist = lm
             data.rlist = rm
             if p < pstar:

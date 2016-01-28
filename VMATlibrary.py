@@ -8,7 +8,6 @@ from scipy import sparse
 from scipy.optimize import minimize
 import time
 import math
-
 print('read here')
 
 class region:

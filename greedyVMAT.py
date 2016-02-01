@@ -20,7 +20,7 @@ import time
 import math
 
 rootFolder = '/media/wilmer/datadrive'
-rootFolder = '/home/wilmer/Documents/Troy_BU'
+#rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -97,7 +97,6 @@ class vmat_class:
     mygradient = []
     # data class function
     def calcDose(self):
-        print('entre')
         # self.currentDose = self.Dmat.transpose() * newIntensities
         self.currentDose = np.zeros(251897, dtype = float)
         for i in self.caligraphicC:
@@ -472,21 +471,24 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
     boundaries = [] # Contains the list of final boundaries.
     minweight = float("inf")
     D = Dlist[index]
-
+    
     # Find geographical location of the first row.
     geolocX = data.xinter[0]
     # Find all possible locations of beamlets in this row according to geographical location
-    indys = np.where(geolocX == data.xdirection[0])
-    ys = data.ydirection[0][indys]
-    validbeamlets = np.in1d(data.yinter, ys) * range(0,len(data.yinter))
-    validbeamlets = validbeamlets[validbeamlets > 0]
-   
+    indys = np.where(geolocX == data.xdirection[index])
+    ys = data.ydirection[index][indys]
+    validbeamlets = np.in1d(data.yinter, ys) * range(0, len(data.yinter))
+    validbeamlets = validbeamlets[ validbeamlets > 0 ]
+    
+    # Keep the location of the leftmost leaf
+    leftmostleaf = len(ys)
+    
     for l in range(math.ceil(max(min(validbeamlets)-1, lcm[0] - vmax * angdistancem/speedlim, lcp[0] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[0] + vmax * angdistancem / speedlim, lcp[0] + vmax * angdistancep / speedlim))):
         for r in range(math.ceil(max(l + 1, rcm[0] - vmax * angdistancem/speedlim, rcp[0] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets)+1, rcm[0] + vmax * angdistancem / speedlim, rcp[0] + vmax * angdistancep / speedlim))):
             
             # First I have to make sure to add the beamlets that I am interested in
-            if(l + 1 <= r - 1):
-                Dose = sum( D[[i for i in range(l+1, r-1)],:] * data.mygradient)
+            if(l + 1 <= r -1): # prints r numbers starting from l + 1. So range(3,4) = 3
+                Dose = sum( D[[i for i in range(l+1, r)],:] * data.mygradient)
                 weight = C * (C2 * (r - l) - C3 * b * (r - l) - Dose)
             else:
                 Dose = 0.0
@@ -510,22 +512,31 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
         myend = time.time()
         print(myend - mystart)
         mystart = myend
-        for l in range(math.ceil(max(0, lcm[m] - vmax * angdistancem/speedlim, lcp[m] - vmax * angdistancep / speedlim)), math.floor(min(N, lcm[m] + vmax * angdistancem / speedlim, lcp[m] + vmax * angdistancep / speedlim))):
-            for r in range(math.ceil(max(l + 1, rcm[m] - vmax * angdistancem/speedlim, rcp[m] - vmax * angdistancep / speedlim)), math.floor(min(N+1, rcm[m] + vmax * angdistancem / speedlim, rcp[m] + vmax * angdistancep / speedlim))):
+        # Find geographical location of this row again.
+        geolocX = data.xinter[m-1]
+        # Find all possible locations of beamlets in this row according to geography
+        indys = np.where(geolocX == data.xdirection[index])
+        ys = data.ydirection[index][indys]
+        validbeamlets = np.in1d(data.yinter, ys) * range(0, len(data.yinter))
+        validbeamlets = validbeamlets[ validbeamlets > 0 ]
+
+        # And now process normally checking against valid beamlets
+        for l in range(math.ceil(max(min(validbeamlets)-1, lcm[m] - vmax * angdistancem/speedlim, lcp[m] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[m] + vmax * angdistancem / speedlim, lcp[m] + vmax * angdistancep / speedlim))):
+            for r in range(math.ceil(max(l + 1, rcm[m] - vmax * angdistancem/speedlim, rcp[m] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets) + 1, rcm[m] + vmax * angdistancem / speedlim, rcp[m] + vmax * angdistancep / speedlim))):
                 flagnewlevel = flagnewlevel + 1
                 # Create node (m, l, r)
                 print("right now on node: ", m , l, r)
                 networkNodes.append([m, l, r, float("inf"), 0])
                 thisnode = len(networkNodes) - 1
-                lmlimit = l + ((m - 1) * N)
-                rmlimit = r + ((m - 1) * N)
-                Dose = sum(D[[i for i in range(lmlimit, rmlimit)],:] * data.mygradient)
-                #print("stage2andahalf")
-                #print("dimensions of D are:")
-                #mystart2 = time.time()
-                #pipart = sum(D[range(l,r),:] * data.mygradient)
-                #print("last operation took", time.time() - mystart2)
-                C3simplifier = C3 * b * (rmlimit - lmlimit)
+                lmlimit = l + leftmostleaf
+                rmlimit = r + leftmostleaf
+                print( lmlimit , rmlimit )
+                if(lmlimit + 1 <= rmlimit - 1):
+                    Dose = sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.mygradient)
+                    C3simplifier = C3 * b * (rmlimit - lmlimit)
+                else:
+                    Dose = 0.0
+                    C3simplifier = 0
                 for mynode in (range(flagposition - nodesinpreviouslevel, flagposition)):
                     # Create arc from (m-1, l, r) to (m, l, r). And assign weight
                     lambdaletter = math.fabs(networkNodes[mynode][1] - l) + math.fabs(networkNodes[mynode][2] - r) - 2 * max(0, networkNodes[mynode][1] - r) - 2 * max(0, l - math.fabs(networkNodes[mynode][2]))
@@ -536,6 +547,9 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
                         networkNodes[thisnode][4] = mynode
         flagposition = flagnewlevel + flagposition # This is the total number of network nodes
         nodesinpreviouslevel = flagnewlevel
+        # Keep the location of the leftmost leaf
+        leftmostleaf = len(ys) + leftmostleaf
+        
     print("And last. Add the arcs to the sink")
     networkNodes.append([M + 1, 0, 0, float("inf"), 0])
     thisnode = len(networkNodes)

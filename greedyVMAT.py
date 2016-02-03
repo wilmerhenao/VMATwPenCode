@@ -481,8 +481,8 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
     validbeamlets = np.in1d(data.yinter, ys)
     validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
     
-    # Keep the location of the leftmost leaf
-    leftmostleaf = len(ys) # Position in python position(-1) of the leftmost leaf.
+    # Keep the location of the most leaf
+    leftmostleaf = len(ys) # Position in python position(-1) of the leftmost leaf
     nodesinpreviouslevel = 0
     # First handle the calculations for the first row
     for l in range(math.ceil(max(min(validbeamlets)-1, lcm[0] - vmax * angdistancem/speedlim, lcp[0] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[0] + vmax * angdistancem / speedlim, lcp[0] + vmax * angdistancep / speedlim))):
@@ -494,16 +494,14 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
                 weight = C * ( C2 * (r - l) - C3 * b * (r - l)) - Dose
             else:
                 weight = 0.0
-            # Create node (1,l,r) in array of existing nodes
+            # Create node (1,l,r) in array of existing nodes and update the counter
             networkNodes.append([1, l, r, weight, 0])
             nodesinpreviouslevel = nodesinpreviouslevel + 1
-
     posBeginningOfRow = posBeginningOfRow + nodesinpreviouslevel
     mystart = time.time()
     
     # Then handle the calculations for the m rows. Nodes that are neither source nor sink.
     for m in range(2,M):
-
         # Show time taken per row
         print("Now on row", m)
         myend   =  time.time()
@@ -521,14 +519,14 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
         # And now process normally checking against valid beamlets
         for l in range(math.ceil(max(min(validbeamlets)-1, lcm[m] - vmax * angdistancem/speedlim, lcp[m] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[m] + vmax * angdistancem / speedlim, lcp[m] + vmax * angdistancep / speedlim))):
             for r in range(math.ceil(max(l + 1, rcm[m] - vmax * angdistancem/speedlim, rcp[m] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets) + 1, rcm[m] + vmax * angdistancem / speedlim, rcp[m] + vmax * angdistancep / speedlim))):
-                # Create node (m, l, r)
-                networkNodes.append([m, -float("inf"), float("inf"), float("inf"), 0])
+                # Create node (m, l, r) and update the level counter
+                networkNodes.append([m, l, r, float("inf"), float("inf")])
                 nodesinpreviouslevel = nodesinpreviouslevel + 1
                 thisnode = len(networkNodes) - 1
                 lmlimit = l + leftmostleaf
                 rmlimit = r + leftmostleaf
                 if(lmlimit + 1 <= rmlimit - 1):
-                    Dose = -sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.mygradient)
+                    Dose = - sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.mygradient)
                     C3simplifier = C3 * b * (rmlimit - lmlimit)
                 else:
                     Dose = 0.0
@@ -539,27 +537,20 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
                     weight = C * (C2 * lambdaletter - C3simplifier) - Dose
                     #print("weight is", weight)
                     if(networkNodes[mynode][3] + weight < networkNodes[thisnode][3]):
-                        #print("mynode", networkNodes[mynode][3])
-                        #print("thisnode", networkNodes[thisnode][3])
-                        #print(l,r)
-                        networkNodes[thisnode][1] = l
-                        networkNodes[thisnode][2] = r
                         networkNodes[thisnode][3] = networkNodes[mynode][3] + weight
                         # And next we look for the minimum distance.
                         networkNodes[thisnode][4] = mynode
         posBeginningOfRow = nodesinpreviouslevel + posBeginningOfRow # This is the total number of network nodes
         # Keep the location of the leftmost leaf
         leftmostleaf = len(ys) + leftmostleaf
-        
+
     print("And last. Add the arcs to the sink")
-    networkNodes.append([M, 0, 0, float("inf"), 0])
+    networkNodes.append([M, float("inf"), float("inf"), float("inf"), float("inf")])
     posBeginningOfRow = posBeginningOfRow + 1
     thisnode = len(networkNodes) - 1
-    print(posBeginningOfRow)
-    print(nodesinpreviouslevel)
-    print(len(networkNodes))
+    print("check that thisnode and posBeginningOfRow is the same: ", thisnode, posBeginningOfRow)
     for mynode in (range(posBeginningOfRow - nodesinpreviouslevel, posBeginningOfRow)):
-        weight = C * ( C2 * (r - l))
+        weight = C * ( C2 * (networkNodes[mynode][2] - networkNodes[mynode][1] ) )
         if(networkNodes[mynode][3] + weight <= networkNodes[thisnode][3]):
             networkNodes[thisnode][3] = networkNodes[mynode][3] + weight
             networkNodes[thisnode][4] = mynode
@@ -576,10 +567,10 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
         l.append(networkNodes[thenode][1])
         r.append(networkNodes[thenode][2])
         if(0 == thenode): # If at the origin then break.
+            print("I am at the origin and will break")
             break
     print(l)
     print(r)
-    
     return(p, reversed(l), reversed(r))
 
 def solveRMC():

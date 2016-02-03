@@ -496,7 +496,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
             
             # First I have to make sure to add the beamlets that I am interested in
             if(l + 1 <= r -1): # prints r numbers starting from l + 1. So range(3,4) = 3
-                Dose = sum( D[[i for i in range(l+1, r)],:] * data.mygradient)
+                Dose = -sum( D[[i for i in range(l+1, r)],:] * data.mygradient)
                 weight = C * (C2 * (r - l) - C3 * b * (r - l) - Dose)
             else:
                 Dose = 0.0
@@ -540,7 +540,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
                 lmlimit = l + leftmostleaf
                 rmlimit = r + leftmostleaf
                 if(lmlimit + 1 <= rmlimit - 1):
-                    Dose = sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.mygradient)
+                    Dose = -sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.mygradient)
                     C3simplifier = C3 * b * (rmlimit - lmlimit)
                 else:
                     Dose = 0.0
@@ -551,9 +551,9 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
                     weight = C * (C2 * lambdaletter - C3simplifier) - Dose
                     #print("weight is", weight)
                     if(networkNodes[mynode][3] + weight < networkNodes[thisnode][3]):
-                        print("mynode", networkNodes[mynode][3])
-                        print("thisnode", networkNodes[thisnode][3])
-                        print(l,r)
+                        #print("mynode", networkNodes[mynode][3])
+                        #print("thisnode", networkNodes[thisnode][3])
+                        #print(l,r)
                         networkNodes[thisnode][1] = l
                         networkNodes[thisnode][2] = r
                         networkNodes[thisnode][3] = networkNodes[mynode][3] + weight

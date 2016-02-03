@@ -18,8 +18,8 @@ from scipy.optimize import minimize
 import time
 import math
 
-#rootFolder = '/media/wilmer/datadrive'
-rootFolder = '/home/wilmer/Documents/Troy_BU'
+rootFolder = '/media/wilmer/datadrive'
+#rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -115,18 +115,18 @@ class vmat_class:
         oDoseObjCl = (oDoseObj > 0) * oDoseObj
         oDoseObj = (oDoseObj > 0) * oDoseObj
         oDoseObj = oDoseObj * oDoseObj * quadHelperOver
-    
+
         uDoseObj = quadHelperThresh - self.currentDose
         uDoseObjCl = (uDoseObj > 0) * uDoseObj
         uDoseObj = (uDoseObj > 0) * uDoseObj
         uDoseObj = uDoseObj * uDoseObj * quadHelperUnder
         objectiveValue = sum(oDoseObj + uDoseObj)
-    
+
         oDoseObjGl = 2 * oDoseObjCl * quadHelperOver
         uDoseObjGl = 2 * uDoseObjCl * quadHelperUnder
             # Wilmer. Is this right?
         self.mygradient = 2 * (oDoseObjGl - uDoseObjGl)
-   
+
     # default constructor
     def __init__(self):
         self.numX = 0
@@ -498,6 +498,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
             # Create node (1,l,r) in array of existing nodes and update the counter
             networkNodes.append([1, l, r, weight, 0])
             nodesinpreviouslevel = nodesinpreviouslevel + 1
+
     posBeginningOfRow = posBeginningOfRow + nodesinpreviouslevel
     mystart = time.time()
     
@@ -550,7 +551,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
     networkNodes.append([M, float("inf"), float("inf"), float("inf"), float("inf")])
     posBeginningOfRow = posBeginningOfRow + 1 # Notice that this position right now falls outside the array! Here only for illustration.
     thisnode = len(networkNodes) - 1
-    print("check that thisnode and posBeginningOfRow is the same: ", thisnode, posBeginningOfRow)
     for mynode in (range(posBeginningOfRow - nodesinpreviouslevel, posBeginningOfRow)):
         weight = C * ( C2 * (networkNodes[mynode][2] - networkNodes[mynode][1] ) )
         if(networkNodes[mynode][3] + weight <= networkNodes[thisnode][3]):
@@ -569,12 +569,11 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
         l.append(networkNodes[thenode][1])
         r.append(networkNodes[thenode][2])
         if(0 == thenode): # If at the origin then break.
-            print("I am at the origin and will break")
             break
-    print("don't forget to reverse the order of the following ARRAY WILMER")
-    print(l)
-    print(r)
-    return(p, reversed(l), reversed(r))
+    l.reverse()
+    r.reverse()
+    print(p)
+    return(p, l, r)
 
 def solveRMC():
     data.numX = sum(data.beamletsPerBeam)
@@ -629,11 +628,12 @@ def colGen():
         data.llist.append([-1] * len(data.xinter))
         data.rlist.append([0] * len(data.xinter))
 
-    data.currentIntensities
+    #data.currentIntensities
     data.calcDose()
-        
+
     for i in range(0, data.numbeams):
         for j in notinC:
+            # This is so weird.
             lcm = data.llist[0]
             rcm = data.rlist[0]
             lcp = data.llist[len(data.llist) - 1]
@@ -656,9 +656,11 @@ def colGen():
             N = len(data.yinter) #N will be related to the Y axis.
             M = len(data.llist[j]) #M will be related to the X axis.
             p, lm, rm = PPsubroutine(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, lcm, lcp, rcm, rcp, N, M, j)
+            if p < 0:
+                break
             print("after pp subroutine")
-            data.llist = lm
-            data.rlist = rm
+            data.llist.append(lm)
+            data.rlist.append(rm)
             if p < pstar:
                 pstar = p
                 iflag = i

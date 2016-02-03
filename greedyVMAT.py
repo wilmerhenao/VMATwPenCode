@@ -484,6 +484,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
     # Keep the location of the most leaf
     leftmostleaf = len(ys) # Position in python position(-1) of the leftmost leaf
     nodesinpreviouslevel = 0
+    oldflag = nodesinpreviouslevel
     # First handle the calculations for the first row
     for l in range(math.ceil(max(min(validbeamlets)-1, lcm[0] - vmax * angdistancem/speedlim, lcp[0] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[0] + vmax * angdistancem / speedlim, lcp[0] + vmax * angdistancep / speedlim))):
         for r in range(math.ceil(max(l + 1, rcm[0] - vmax * angdistancem/speedlim, rcp[0] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets)+1, rcm[0] + vmax * angdistancem / speedlim, rcp[0] + vmax * angdistancep / speedlim))):
@@ -514,6 +515,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
         ys = data.ydirection[index][indys]
         validbeamlets = np.in1d(data.yinter, ys)
         validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
+        oldflag = nodesinpreviouslevel
         nodesinpreviouslevel = 0
 
         # And now process normally checking against valid beamlets
@@ -531,7 +533,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
                 else:
                     Dose = 0.0
                     C3simplifier = 0
-                for mynode in (range(posBeginningOfRow - nodesinpreviouslevel, posBeginningOfRow)):
+                for mynode in (range(posBeginningOfRow - oldflag, posBeginningOfRow)):
                     # Create arc from (m-1, l, r) to (m, l, r). And assign weight
                     lambdaletter = math.fabs(networkNodes[mynode][1] - l) + math.fabs(networkNodes[mynode][2] - r) - 2 * max(0, networkNodes[mynode][1] - r) - 2 * max(0, l - math.fabs(networkNodes[mynode][2]))
                     weight = C * (C2 * lambdaletter - C3simplifier) - Dose
@@ -546,7 +548,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
 
     print("And last. Add the arcs to the sink")
     networkNodes.append([M, float("inf"), float("inf"), float("inf"), float("inf")])
-    posBeginningOfRow = posBeginningOfRow + 1
+    posBeginningOfRow = posBeginningOfRow + 1 # Notice that this position right now falls outside the array! Here only for illustration.
     thisnode = len(networkNodes) - 1
     print("check that thisnode and posBeginningOfRow is the same: ", thisnode, posBeginningOfRow)
     for mynode in (range(posBeginningOfRow - nodesinpreviouslevel, posBeginningOfRow)):
@@ -554,7 +556,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
         if(networkNodes[mynode][3] + weight <= networkNodes[thisnode][3]):
             networkNodes[thisnode][3] = networkNodes[mynode][3] + weight
             networkNodes[thisnode][4] = mynode
-            p = networkNodes[mynode][3]
+            p = networkNodes[thisnode][3]
     
     # return set of left and right limits
     thenode = len(networkNodes) - 1
@@ -569,6 +571,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
         if(0 == thenode): # If at the origin then break.
             print("I am at the origin and will break")
             break
+    print("don't forget to reverse the order of the following ARRAY WILMER")
     print(l)
     print(r)
     return(p, reversed(l), reversed(r))

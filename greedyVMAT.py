@@ -1,6 +1,4 @@
-
 #!/usr/bin/env python
-
 
 __author__ = 'wilmer'
 try:
@@ -20,8 +18,8 @@ from scipy.optimize import minimize
 import time
 import math
 
-rootFolder = '/media/wilmer/datadrive'
-#rootFolder = '/home/wilmer/Documents/Troy_BU'
+#rootFolder = '/media/wilmer/datadrive'
+rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -312,7 +310,7 @@ data.numbeams = len(ga)
 data.beamletsPerBeam = np.empty(data.numbeams, dtype=int)
 data.dijsPerBeam = np.empty(data.numbeams, dtype=int)
 data.xdirection = []
-data.ydirection =[]
+data.ydirection = []
 beamletCounter = np.zeros(data.numbeams + 1)
 
 for i in range(0, data.numbeams):
@@ -469,14 +467,10 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
     # index = index location in the set of apertures that I have saved.
     
     networkNodes = []
-    networkArcs = [] # contains pair of elements that it connects and weight
-    nodesinpreviouslevel = 0
     # Start with arcs that go from the source to level m = 1
     # Create source node
-    networkNodes.append([0, 0, 0, 0, 0]) # m, l, r, distance, predecesor
-    flagposition = 1
-    boundaries = [] # Contains the list of final boundaries.
-    minweight = float("inf")
+    networkNodes.append([-1, 0, 0, 0, 0]) # m, l, r, distance, index of predecesor
+    posBeginningOfRow = 1
     D = Dlist[index]
     
     # Find geographical location of the first row.
@@ -488,54 +482,48 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
     validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
     
     # Keep the location of the leftmost leaf
-    leftmostleaf = len(ys)
-
+    leftmostleaf = len(ys) # Position in python position(-1) of the leftmost leaf.
+    nodesinpreviouslevel = 0
     # First handle the calculations for the first row
     for l in range(math.ceil(max(min(validbeamlets)-1, lcm[0] - vmax * angdistancem/speedlim, lcp[0] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[0] + vmax * angdistancem / speedlim, lcp[0] + vmax * angdistancep / speedlim))):
         for r in range(math.ceil(max(l + 1, rcm[0] - vmax * angdistancem/speedlim, rcp[0] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets)+1, rcm[0] + vmax * angdistancem / speedlim, rcp[0] + vmax * angdistancep / speedlim))):
-            
+
             # First I have to make sure to add the beamlets that I am interested in
             if(l + 1 <= r -1): # prints r numbers starting from l + 1. So range(3,4) = 3
                 Dose = -sum( D[[i for i in range(l+1, r)],:] * data.mygradient)
-                weight = C * (C2 * (r - l) - C3 * b * (r - l) - Dose)
+                weight = C * ( C2 * (r - l) - C3 * b * (r - l)) - Dose
             else:
-                Dose = 0.0
                 weight = 0.0
-            # Create arc from source to (1, l, r) and assign a vector weight to it.
-            networkArcs.append([1, len(networkNodes), weight])
             # Create node (1,l,r) in array of existing nodes
             networkNodes.append([1, l, r, weight, 0])
-            # Find the least element in the weight list.
-            if (weight < minweight):
-                minweight = weight
-                bl = l
-                br = r
-            boundaries.append([bl, br])
-            flagposition = flagposition + 1
             nodesinpreviouslevel = nodesinpreviouslevel + 1
-    mystart = time.time()
 
+    posBeginningOfRow = posBeginningOfRow + nodesinpreviouslevel
+    mystart = time.time()
+    
     # Then handle the calculations for the m rows. Nodes that are neither source nor sink.
     for m in range(2,M):
-        flagnewlevel = 0
+
+        # Show time taken per row
         print("Now on row", m)
-        myend = time.time()
+        myend   =  time.time()
         print(myend - mystart)
         mystart = myend
-        # Find geographical location of this row again.
+        # Find geographical location of this row.
         geolocX = data.xinter[m-1]
         # Find all possible locations of beamlets in this row according to geography
         indys = np.where(geolocX == data.xdirection[index])
         ys = data.ydirection[index][indys]
-        validbeamlets = np.in1d(data.yinter, ys) * range(0, len(data.yinter))
-        validbeamlets = validbeamlets[ validbeamlets > 0 ]
-        
+        validbeamlets = np.in1d(data.yinter, ys)
+        validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
+        nodesinpreviouslevel = 0
+
         # And now process normally checking against valid beamlets
         for l in range(math.ceil(max(min(validbeamlets)-1, lcm[m] - vmax * angdistancem/speedlim, lcp[m] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[m] + vmax * angdistancem / speedlim, lcp[m] + vmax * angdistancep / speedlim))):
             for r in range(math.ceil(max(l + 1, rcm[m] - vmax * angdistancem/speedlim, rcp[m] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets) + 1, rcm[m] + vmax * angdistancem / speedlim, rcp[m] + vmax * angdistancep / speedlim))):
                 # Create node (m, l, r)
                 networkNodes.append([m, -float("inf"), float("inf"), float("inf"), 0])
-                flagnewlevel = flagnewlevel + 1
+                nodesinpreviouslevel = nodesinpreviouslevel + 1
                 thisnode = len(networkNodes) - 1
                 lmlimit = l + leftmostleaf
                 rmlimit = r + leftmostleaf
@@ -545,7 +533,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
                 else:
                     Dose = 0.0
                     C3simplifier = 0
-                for mynode in (range(flagposition - nodesinpreviouslevel, flagposition)):
+                for mynode in (range(posBeginningOfRow - nodesinpreviouslevel, posBeginningOfRow)):
                     # Create arc from (m-1, l, r) to (m, l, r). And assign weight
                     lambdaletter = math.fabs(networkNodes[mynode][1] - l) + math.fabs(networkNodes[mynode][2] - r) - 2 * max(0, networkNodes[mynode][1] - r) - 2 * max(0, l - math.fabs(networkNodes[mynode][2]))
                     weight = C * (C2 * lambdaletter - C3simplifier) - Dose
@@ -559,20 +547,18 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
                         networkNodes[thisnode][3] = networkNodes[mynode][3] + weight
                         # And next we look for the minimum distance.
                         networkNodes[thisnode][4] = mynode
-        flagposition = flagnewlevel + flagposition # This is the total number of network nodes
-        nodesinpreviouslevel = flagnewlevel
+        posBeginningOfRow = nodesinpreviouslevel + posBeginningOfRow # This is the total number of network nodes
         # Keep the location of the leftmost leaf
         leftmostleaf = len(ys) + leftmostleaf
         
     print("And last. Add the arcs to the sink")
     networkNodes.append([M, 0, 0, float("inf"), 0])
-    flagposition = flagposition + 1
+    posBeginningOfRow = posBeginningOfRow + 1
     thisnode = len(networkNodes) - 1
-    print(flagposition)
+    print(posBeginningOfRow)
     print(nodesinpreviouslevel)
     print(len(networkNodes))
-    print('tonces que')
-    for mynode in (range(flagposition - nodesinpreviouslevel, flagposition)):
+    for mynode in (range(posBeginningOfRow - nodesinpreviouslevel, posBeginningOfRow)):
         weight = C * ( C2 * (r - l))
         if(networkNodes[mynode][3] + weight <= networkNodes[thisnode][3]):
             networkNodes[thisnode][3] = networkNodes[mynode][3] + weight

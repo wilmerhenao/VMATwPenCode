@@ -73,6 +73,8 @@ class vmat_class:
     algOptions = [] # vector of data input for algorithm options
     functionData = []
     voxelAssignment = []
+    notinC = [] # List of apertures not yet selected
+    caligraphicC = [] # List of apertures already selected
     
     # varios folders
     outputDirectory = ""# given by the user in the first lines of *.py
@@ -379,6 +381,8 @@ for i in range(0, data.numbeams):
     data.beamletsPerBeam[i] = len(ininter)
     beamletCounter[i+1] = beamletCounter[i] + data.beamletsPerBeam[i]
 
+data.numX = sum(data.beamletsPerBeam)
+
 #### MATRIX CUT DONE Here all matrices are working with the same limits
 
 ## Read in the objective file:
@@ -452,12 +456,14 @@ def eval_jac_g(x, flag, user_data = None):
     else:
         return array([])
 
-def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, lcp, rcm, rcp, N, M, index):
+def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, index):
     # C, C2, C3 are constants in the penalization function
     # angdistancem = $\delta_{c^-c}$
     # angdistancep = $\delta_{cc^+}$
     # vmax = maximum leaf speed
     # speedlim = s
+    # predec = predecesor index
+    # succ = succesor index
     # lcm = vector of left limits in the previous aperture
     # lcp = vector of left limits in the next aperture
     # rcm = vector of left limits in the previous aperture
@@ -480,14 +486,38 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
     ys = data.ydirection[index][indys]
     validbeamlets = np.in1d(data.yinter, ys)
     validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
+
+    # vmaxleft and vmaxright describe the speeds that are possible for the leaves from the predecessor and to the successor
+    vmaxleft = vmax
+    vmaxright = vmax
+    # Arranging the predecessors and the succesors.
+    #Predecessor left and right indices
+    if type(predec) is list:
+        lcm = [0] * M
+        rcm = [N] * M
+        # If there is no predecessor is as if the pred. speed was infinite
+        vmaxleft = float("inf")
+    else:
+        lcm = data.llist[predec]
+        rcm = data.rlist[predec]
+
+    #Succesors left and right indices
+    if type(succ) is list:
+        lcp = [0] * M
+        rcp = [N] * M
+        # If there is no successor is as if the succ. speed was infinite.
+        vmaxright = float("inf")
+    else:
+        lcp = data.llist[succ]
+        rcp = data.rlist[succ]
     
     # Keep the location of the most leaf
     leftmostleaf = len(ys) # Position in python position(-1) of the leftmost leaf
     nodesinpreviouslevel = 0
     oldflag = nodesinpreviouslevel
     # First handle the calculations for the first row
-    for l in range(math.ceil(max(min(validbeamlets)-1, lcm[0] - vmax * angdistancem/speedlim, lcp[0] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[0] + vmax * angdistancem / speedlim, lcp[0] + vmax * angdistancep / speedlim))):
-        for r in range(math.ceil(max(l + 1, rcm[0] - vmax * angdistancem/speedlim, rcp[0] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets)+1, rcm[0] + vmax * angdistancem / speedlim, rcp[0] + vmax * angdistancep / speedlim))):
+    for l in range(math.ceil(max(min(validbeamlets)-1, lcm[0] - vmaxleft * angdistancem/speedlim, lcp[0] - vmaxleft * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[0] + vmaxleft * angdistancem / speedlim, lcp[0] + vmaxleft * angdistancep / speedlim))):
+        for r in range(math.ceil(max(l + 1, rcm[0] - vmaxright * angdistancem/speedlim, rcp[0] - vmaxright * angdistancep / speedlim)), math.floor(min(max(validbeamlets)+1, rcm[0] + vmaxright * angdistancem / speedlim, rcp[0] + vmaxright * angdistancep / speedlim))):
 
             # First I have to make sure to add the beamlets that I am interested in
             if(l + 1 <= r -1): # prints r numbers starting from l + 1. So range(3,4) = 3
@@ -520,8 +550,8 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
         nodesinpreviouslevel = 0
 
         # And now process normally checking against valid beamlets
-        for l in range(math.ceil(max(min(validbeamlets)-1, lcm[m] - vmax * angdistancem/speedlim, lcp[m] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[m] + vmax * angdistancem / speedlim, lcp[m] + vmax * angdistancep / speedlim))):
-            for r in range(math.ceil(max(l + 1, rcm[m] - vmax * angdistancem/speedlim, rcp[m] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets) + 1, rcm[m] + vmax * angdistancem / speedlim, rcp[m] + vmax * angdistancep / speedlim))):
+        for l in range(math.ceil(max(min(validbeamlets)-1, lcm[m] - vmaxleft * angdistancem/speedlim, lcp[m] - vmaxleft * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[m] + vmaxleft * angdistancem / speedlim, lcp[m] + vmaxleft * angdistancep / speedlim))):
+            for r in range(math.ceil(max(l + 1, rcm[m] - vmaxright * angdistancem/speedlim, rcp[m] - vmaxright * angdistancep / speedlim)), math.floor(min(max(validbeamlets) + 1, rcm[m] + vmaxright * angdistancem / speedlim, rcp[m] + vmaxright * angdistancep / speedlim))):
                 # Create node (m, l, r) and update the level counter
                 networkNodes.append([m, l, r, float("inf"), float("inf")])
                 nodesinpreviouslevel = nodesinpreviouslevel + 1
@@ -575,8 +605,39 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
     print(p)
     return(p, l, r)
 
+def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, M):
+    lall = []
+    rall = []
+    pstar = float("inf")
+    i = 0
+    for index in data.notinC:
+        print("analysing index" , index)
+        # Find the succesor and predecessor of this particular element
+        succs = [i for i in range(0, data.numbeams) if i > index]
+        predecs = [i for i in range(0, data.numbeams) if i < index]
+
+        # If there are no predecessors or succesors just return an empty list. If there ARE, then return the indices
+        if 0 == len(succs):
+            succ = []
+        else:
+            succ = min(succs)
+        if 0 == len(predecs):
+            predec = []
+        else:
+            predec = max(predecs)
+
+        p, l, r = PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, index)
+        lall.append(l)
+        rall.append(r)
+        i = i + 1
+        # The next "if" will be entered at least once.
+        if p < pstar:
+            bestAperture = index
+            pstar = p
+            besti = i
+    return(pstar, lall[i], rall[i], bestAperture)
+
 def solveRMC():
-    data.numX = sum(data.beamletsPerBeam)
     ## IPOPT SOLUTION
     start = time.time()
     numbe = len(data.caligraphicC)
@@ -617,56 +678,62 @@ def colGen():
     angdistancep = 60
     vmax = 2.0
     speedlim = 3.0
-    
+
+    # At the beginning no apertures are selected, and those who are not selected are all in notinC
     data.caligraphicC = []
-    notinC = range(0, len(Dlist))
-    zlist = np.zeros(len(Dlist))
-    iflag = 0
-    pstar = float("inf")
-        # Assign left and right limits to the aperture. Make sure they are closed
+    data.notinC = range(0, len(Dlist))
+    # Assign left and right limits to all apertures. Make sure they are closed
     for i in range(0, data.numbeams):
         data.llist.append([-1] * len(data.xinter))
         data.rlist.append([0] * len(data.xinter))
 
-    #data.currentIntensities
+    #Step 0 on Fei's paper. Set C = empty and zbar = 0
     data.calcDose()
 
-    for i in range(0, data.numbeams):
-        for j in notinC:
-            # This is so weird.
-            lcm = data.llist[0]
-            rcm = data.rlist[0]
-            lcp = data.llist[len(data.llist) - 1]
-            rcp = data.rlist[len(data.rlist) - 1]
-            ## Find largest smaller value in caligraphicC and smallest larger value.
-            if data.caligraphicC:
-                lcv = data.caligraphicC[data.caligraphicC < j]
-                scv = data.calibraphicC[data.caligraphicC > j]
-                mvalue = 0
-                pvalue = data.numbeams - 1
-                if lcv:
-                    mvalue = max(lcv)
-                    lcm = data.llist[mvalue]
-                    rcm = data.rlist[mvalue]
-                if scv:
-                    pvalue = min(scv)
-                    lcp = data.llist[pvalue]
-                    rcp = data.rlist[pvalue]
-                
-            N = len(data.yinter) #N will be related to the Y axis.
-            M = len(data.llist[j]) #M will be related to the X axis.
-            p, lm, rm = PPsubroutine(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, lcm, lcp, rcm, rcp, N, M, j)
-            if p < 0:
-                break
-            print("after pp subroutine")
-            data.llist.append(lm)
-            data.rlist.append(rm)
-            if p < pstar:
-                pstar = p
-                iflag = i
-            if pstar > 0:
-                data.caligraphicC.append(iflag)
-                solveRMC()
+    pstar = -float("inf")
+    while(pstar < 0):
+        # Step 1 on Fei's paper. Use the information on the current treatment plan to formulate and solve an instance of the PP
+        data.calcDose()
+        lcm = data.llist[0]
+        rcm = data.rlist[0]
+        lcp = data.llist[len(data.llist) - 1]
+        rcp = data.rlist[len(data.rlist) - 1]
+        ## Find largest smaller value in caligraphicC and smallest larger value.
+        if data.caligraphicC:
+            lcv = data.caligraphicC[data.caligraphicC < j]
+            scv = data.calibraphicC[data.caligraphicC > j]
+            mvalue = 0
+            pvalue = data.numbeams - 1
+            if lcv:
+                mvalue = max(lcv)
+                lcm = data.llist[mvalue]
+                rcm = data.rlist[mvalue]
+            if scv:
+                pvalue = min(scv)
+                lcp = data.llist[pvalue]
+                rcp = data.rlist[pvalue]
+        N = len(data.yinter) #N will be related to the Y axis.
+        M = len(data.llist[0]) #M will be related to the X axis.
+        # p, lm, rm =  PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, 4, [], N, M, 5)
+        print("todo bien")
+        p, lm, rm, bestAperture = PricingProblem(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, N, M)
+
+        # Step 2. If the optimal value of the PP is nonnegative**, go to step 5. Otherwise, denote the optimal solution to the
+        # PP by c and Ac and replace caligraphic C and A = Abar, k \in caligraphicC
+        if p >= 0:
+            break
+        else:
+            data.caligraphicC.append(bestAperture)
+            data.caligraphicC.sort()
+            data.notinC.remove(bestAperture)
+            # Solve the instance of the RMP associated with caligraphicC and Ak = Akbar, k \in caligraphicC
+            data.llist[bestAperture] = lm
+            data.rlist[bestAperture] = rm
+            solveRMC()
+
+    #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
+    #notinC and denote the final set of fluence rates by yk
+
 
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')
 

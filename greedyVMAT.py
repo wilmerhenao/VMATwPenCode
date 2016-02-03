@@ -484,12 +484,13 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
     # Find all possible locations of beamlets in this row according to geographical location
     indys = np.where(geolocX == data.xdirection[index])
     ys = data.ydirection[index][indys]
-    validbeamlets = np.in1d(data.yinter, ys) * range(0, len(data.yinter))
-    validbeamlets = validbeamlets[ validbeamlets > 0 ]
+    validbeamlets = np.in1d(data.yinter, ys)
+    validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
     
     # Keep the location of the leftmost leaf
     leftmostleaf = len(ys)
-    
+
+    # First handle the calculations for the first row
     for l in range(math.ceil(max(min(validbeamlets)-1, lcm[0] - vmax * angdistancem/speedlim, lcp[0] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[0] + vmax * angdistancem / speedlim, lcp[0] + vmax * angdistancep / speedlim))):
         for r in range(math.ceil(max(l + 1, rcm[0] - vmax * angdistancem/speedlim, rcp[0] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets)+1, rcm[0] + vmax * angdistancem / speedlim, rcp[0] + vmax * angdistancep / speedlim))):
             
@@ -513,6 +514,8 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
             flagposition = flagposition + 1
             nodesinpreviouslevel = nodesinpreviouslevel + 1
     mystart = time.time()
+
+    # Then handle the calculations for the m rows. Nodes that are neither source nor sink.
     for m in range(2,M):
         flagnewlevel = 0
         print("Now on row", m)

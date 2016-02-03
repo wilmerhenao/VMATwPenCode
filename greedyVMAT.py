@@ -1,6 +1,7 @@
 
 #!/usr/bin/env python
 
+
 __author__ = 'wilmer'
 try:
     import mkl
@@ -98,13 +99,19 @@ class vmat_class:
     # data class function
     def calcDose(self):
         # self.currentDose = self.Dmat.transpose() * newIntensities
-        self.currentDose = np.zeros(251897, dtype = float)
-        for i in self.caligraphicC:
-            ThisDlist = Dlist[i]
-            for m in range(0, llist[i]):
-                ThisDlist[:, range((m * len(data.yinter)),(m * len(data.yinter)) + data.llist[i][m])] = 0.0
-                #ThisDlist[((m * numvoxels):data.llist[i][m])] 
-            self.currentDose += ThisDlist * np.repeat(self.currentIntensities[i], Dlist[i].shape[1], axis = 0)
+        self.currentDose = np.zeros(self.numvoxels, dtype = float)
+        if len(self.caligraphicC) != 0:
+            for i in self.caligraphicC:
+                ThisDlist = Dlist[i]
+                for m in range(0, self.llist[i]):
+                    # Find geographical values of llist and rlist.
+
+                    # First all possible geographical values
+                    geovalues = unique(data.yinter)
+                    for m in range(0, len(data.xinter)):
+                        geovalues[[ thisbixel for thisbixel in range(self.llist[m] + 1, self.rlist[m])]]
+                        ThisDlist[:, ] = 0.0
+                self.currentDose += ThisDlist * np.repeat(self.currentIntensities[i], Dlist[i].shape[1], axis = 0)
 
         oDoseObj = self.currentDose - quadHelperThresh
         oDoseObjCl = (oDoseObj > 0) * oDoseObj
@@ -463,11 +470,11 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
     
     networkNodes = []
     networkArcs = [] # contains pair of elements that it connects and weight
-    flagposition = 0
     nodesinpreviouslevel = 0
     # Start with arcs that go from the source to level m = 1
     # Create source node
     networkNodes.append([0, 0, 0, 0, 0]) # m, l, r, distance, predecesor
+    flagposition = 1
     boundaries = [] # Contains the list of final boundaries.
     minweight = float("inf")
     D = Dlist[index]
@@ -508,7 +515,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
     mystart = time.time()
     for m in range(2,M):
         flagnewlevel = 0
-        print("New row")
+        print("Now on row", m)
         myend = time.time()
         print(myend - mystart)
         mystart = myend
@@ -519,18 +526,16 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
         ys = data.ydirection[index][indys]
         validbeamlets = np.in1d(data.yinter, ys) * range(0, len(data.yinter))
         validbeamlets = validbeamlets[ validbeamlets > 0 ]
-
+        
         # And now process normally checking against valid beamlets
         for l in range(math.ceil(max(min(validbeamlets)-1, lcm[m] - vmax * angdistancem/speedlim, lcp[m] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[m] + vmax * angdistancem / speedlim, lcp[m] + vmax * angdistancep / speedlim))):
             for r in range(math.ceil(max(l + 1, rcm[m] - vmax * angdistancem/speedlim, rcp[m] - vmax * angdistancep / speedlim)), math.floor(min(max(validbeamlets) + 1, rcm[m] + vmax * angdistancem / speedlim, rcp[m] + vmax * angdistancep / speedlim))):
-                flagnewlevel = flagnewlevel + 1
                 # Create node (m, l, r)
-                print("right now on node: ", m , l, r)
-                networkNodes.append([m, l, r, float("inf"), 0])
+                networkNodes.append([m, -float("inf"), float("inf"), float("inf"), 0])
+                flagnewlevel = flagnewlevel + 1
                 thisnode = len(networkNodes) - 1
                 lmlimit = l + leftmostleaf
                 rmlimit = r + leftmostleaf
-                print( lmlimit , rmlimit )
                 if(lmlimit + 1 <= rmlimit - 1):
                     Dose = sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.mygradient)
                     C3simplifier = C3 * b * (rmlimit - lmlimit)
@@ -541,7 +546,13 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
                     # Create arc from (m-1, l, r) to (m, l, r). And assign weight
                     lambdaletter = math.fabs(networkNodes[mynode][1] - l) + math.fabs(networkNodes[mynode][2] - r) - 2 * max(0, networkNodes[mynode][1] - r) - 2 * max(0, l - math.fabs(networkNodes[mynode][2]))
                     weight = C * (C2 * lambdaletter - C3simplifier) - Dose
+                    #print("weight is", weight)
                     if(networkNodes[mynode][3] + weight < networkNodes[thisnode][3]):
+                        print("mynode", networkNodes[mynode][3])
+                        print("thisnode", networkNodes[thisnode][3])
+                        print(l,r)
+                        networkNodes[thisnode][1] = l
+                        networkNodes[thisnode][2] = r
                         networkNodes[thisnode][3] = networkNodes[mynode][3] + weight
                         # And next we look for the minimum distance.
                         networkNodes[thisnode][4] = mynode
@@ -551,25 +562,35 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, lcm, 
         leftmostleaf = len(ys) + leftmostleaf
         
     print("And last. Add the arcs to the sink")
-    networkNodes.append([M + 1, 0, 0, float("inf"), 0])
-    thisnode = len(networkNodes)
+    networkNodes.append([M, 0, 0, float("inf"), 0])
+    flagposition = flagposition + 1
+    thisnode = len(networkNodes) - 1
+    print(flagposition)
+    print(nodesinpreviouslevel)
+    print(len(networkNodes))
+    print('tonces que')
     for mynode in (range(flagposition - nodesinpreviouslevel, flagposition)):
         weight = C * ( C2 * (r - l))
-        if(networkNodes[mynode][3] + weight <= networkNodes[thisnode]):
-            networkNodes[mynode][3] = networkNodes[mynode][3] + weight
-            networkNodes[mynode][4] = mynode
+        if(networkNodes[mynode][3] + weight <= networkNodes[thisnode][3]):
+            networkNodes[thisnode][3] = networkNodes[mynode][3] + weight
+            networkNodes[thisnode][4] = mynode
             p = networkNodes[mynode][3]
-            
+    
     # return set of left and right limits
-    thenode = len(networkNodes)
+    thenode = len(networkNodes) - 1
     l = []
     r = []
     while(1):
-        # Find the predecessor
+        # Find the predecessor data
+        print(thenode)
         thenode = networkNodes[thenode][4]
         l.append(networkNodes[thenode][1])
         r.append(networkNodes[thenode][2])
-        
+        if(0 == thenode): # If at the origin then break.
+            break
+    print(l)
+    print(r)
+    
     return(p, reversed(l), reversed(r))
 
 def solveRMC():
@@ -620,12 +641,13 @@ def colGen():
     zlist = np.zeros(len(Dlist))
     iflag = 0
     pstar = float("inf")
+        # Assign left and right limits to the aperture. Make sure they are closed
+    for i in range(0, data.numbeams):
+        data.llist.append([-1] * len(data.xinter))
+        data.rlist.append([0] * len(data.xinter))
+
     data.currentIntensities
     data.calcDose()
-    # Assign left and right limits to the aperture
-    for i in range(0, data.numbeams):
-        data.llist.append(np.zeros(len(data.xinter)))
-        data.rlist.append(np.ones(len(data.xinter)) * len(data.yinter))
         
     for i in range(0, data.numbeams):
         for j in notinC:

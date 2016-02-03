@@ -569,6 +569,8 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                     lambdaletter = math.fabs(networkNodes[mynode][1] - l) + math.fabs(networkNodes[mynode][2] - r) - 2 * max(0, networkNodes[mynode][1] - r) - 2 * max(0, l - math.fabs(networkNodes[mynode][2]))
                     weight = C * (C2 * lambdaletter - C3simplifier) - Dose
                     #print("weight is", weight)
+                    print(networkNodes[mynode][3])
+                    print(networkNodes[thisnode][3])
                     if(networkNodes[mynode][3] + weight < networkNodes[thisnode][3]):
                         networkNodes[thisnode][3] = networkNodes[mynode][3] + weight
                         # And next we look for the minimum distance.
@@ -683,9 +685,11 @@ def colGen():
     data.caligraphicC = []
     data.notinC = range(0, len(Dlist))
     # Assign left and right limits to all apertures. Make sure they are closed
+    # Find mid range:
+    midrange = sum([1 for thisitem in np.unique(data.yinter) if thisitem < 0])
     for i in range(0, data.numbeams):
-        data.llist.append([-1] * len(data.xinter))
-        data.rlist.append([0] * len(data.xinter))
+        data.llist.append([midrange] * len(data.xinter))
+        data.rlist.append([midrange+1] * len(data.xinter))
 
     #Step 0 on Fei's paper. Set C = empty and zbar = 0
     data.calcDose()
@@ -714,9 +718,8 @@ def colGen():
                 rcp = data.rlist[pvalue]
         N = len(data.yinter) #N will be related to the Y axis.
         M = len(data.llist[0]) #M will be related to the X axis.
-        # p, lm, rm =  PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, 4, [], N, M, 5)
-        print("todo bien")
-        p, lm, rm, bestAperture = PricingProblem(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, N, M)
+        p, lm, rm =  PPsubroutine(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, 4, [], N, M, 5)
+        #p, lm, rm, bestAperture = PricingProblem(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, N, M)
 
         # Step 2. If the optimal value of the PP is nonnegative**, go to step 5. Otherwise, denote the optimal solution to the
         # PP by c and Ac and replace caligraphic C and A = Abar, k \in caligraphicC

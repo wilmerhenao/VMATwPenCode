@@ -18,8 +18,8 @@ from scipy.optimize import minimize
 import time
 import math
 
-rootFolder = '/media/wilmer/datadrive'
-#rootFolder = '/home/wilmer/Documents/Troy_BU'
+#rootFolder = '/media/wilmer/datadrive'
+rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -58,6 +58,7 @@ class vmat_class:
     numbeams = 0 # num of beams
     totaldijs = 0 # num of nonzeros in Dij matrix
     nnz_jac_g = 0
+    objectiveValue = float("inf")
     
     # vectors
     beamletsPerBeam = [] # number of beamlets per beam 
@@ -103,16 +104,26 @@ class vmat_class:
         if len(self.caligraphicC) != 0:
             for i in self.caligraphicC:
                 ThisDlist = Dlist[i]
+                leftlimits = 0
                 for m in range(0, self.llist[i]):
                     # Find geographical values of llist and rlist.
+                    # Find geographical location of the first row.
+                    geolocX = data.xinter[m]
+                    # Find all possible locations of beamlets in this row according to geographical location
+                    indys = np.where(geolocX == data.xdirection[index])
+                    ys = data.ydirection[index][indys]
+                    validbeamlets = np.in1d(data.yinter, ys)
+                    # After next line, validbeamlets contains all beamlets that are "fair game" in this row.
+                    validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
+                    # First index in this row
+                    indleft = data.llist[index][m] - min(validbeamlets) + 1 + leftlimits
+                    indright = data.rlist[index][m] - min(validbeamlets) - 1 + leftlimits
+                    # Keep the location of the leftmost leaf
+                    leftlimits = leftlimits + len(validbeamlets)
+                    if (indleft < indright + 1):
+                        self.currentDose += ThisDlist[[i for i in range(indleft, indright + 1)],:] * np.repeat(self.currentIntensities[i], Dlist[i].shape[1], axis = 0)
 
-                    # First all possible geographical values
-                    geovalues = unique(data.yinter)
-                    for m in range(0, len(data.xinter)):
-                        geovalues[[ thisbixel for thisbixel in range(self.llist[m] + 1, self.rlist[m])]]
-                        ThisDlist[:, ] = 0.0
-                self.currentDose += ThisDlist * np.repeat(self.currentIntensities[i], Dlist[i].shape[1], axis = 0)
-
+    def calcGradientandObjValue(self):
         oDoseObj = self.currentDose - quadHelperThresh
         oDoseObjCl = (oDoseObj > 0) * oDoseObj
         oDoseObj = (oDoseObj > 0) * oDoseObj
@@ -122,11 +133,10 @@ class vmat_class:
         uDoseObjCl = (uDoseObj > 0) * uDoseObj
         uDoseObj = (uDoseObj > 0) * uDoseObj
         uDoseObj = uDoseObj * uDoseObj * quadHelperUnder
-        objectiveValue = sum(oDoseObj + uDoseObj)
+        self.objectiveValue = sum(oDoseObj + uDoseObj)
 
         oDoseObjGl = 2 * oDoseObjCl * quadHelperOver
         uDoseObjGl = 2 * uDoseObjCl * quadHelperUnder
-            # Wilmer. Is this right?
         self.mygradient = 2 * (oDoseObjGl - uDoseObjGl)
 
     # default constructor
@@ -430,7 +440,7 @@ for s in range(0, data.numstructs):
         quadHelperOver[int(data.regions[s].indices[j])] = functionData[1][s]
         quadHelperUnder[int(data.regions[s].indices[j])] = functionData[2][s]
 
-def evaluateFunction(x, user_data= None):
+def calcFunction(x, user_data= None):
     data.currentIntensities = x
     data.calcDose()
     oDoseObj = data.currentDose - quadHelperThresh
@@ -442,10 +452,17 @@ def evaluateFunction(x, user_data= None):
     objectiveValue = sum(oDoseObj + uDoseObj)
     return( objectiveValue )
 
-def evaluateGradient(x, user_data= None):
+def calcGradient(x, user_data = None):
     data.currentIntensities = x
     data.calcDose()
     return(data.mygradient)
+
+def calcObjGrad(x, user_data = None):
+    data.currentIntensities = x
+    data.calcDose()
+    data.calcGradientandObjValue()
+    return(data.objectiveValue, data.mygradient)
+
 
 def eval_g(x, user_data= None):
            return array([], float_)
@@ -478,25 +495,17 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     networkNodes.append([-1, 0, 0, 0, 0]) # m, l, r, distance, index of predecesor
     posBeginningOfRow = 1
     D = Dlist[index]
-    
-    # Find geographical location of the first row.
-    geolocX = data.xinter[0]
-    # Find all possible locations of beamlets in this row according to geographical location
-    indys = np.where(geolocX == data.xdirection[index])
-    ys = data.ydirection[index][indys]
-    validbeamlets = np.in1d(data.yinter, ys)
-    validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
 
-    # vmaxleft and vmaxright describe the speeds that are possible for the leaves from the predecessor and to the successor
-    vmaxleft = vmax
-    vmaxright = vmax
+    # vmaxm and vmaxp describe the speeds that are possible for the leaves from the predecessor and to the successor
+    vmaxm = vmax
+    vmaxp = vmax
     # Arranging the predecessors and the succesors.
     #Predecessor left and right indices
     if type(predec) is list:
         lcm = [0] * M
         rcm = [N] * M
         # If there is no predecessor is as if the pred. speed was infinite
-        vmaxleft = float("inf")
+        vmaxm = float("inf")
     else:
         lcm = data.llist[predec]
         rcm = data.rlist[predec]
@@ -506,18 +515,26 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         lcp = [0] * M
         rcp = [N] * M
         # If there is no successor is as if the succ. speed was infinite.
-        vmaxright = float("inf")
+        vmaxp = float("inf")
     else:
         lcp = data.llist[succ]
         rcp = data.rlist[succ]
-    
+
+    # Find geographical location of the first row.
+    geolocX = data.xinter[0]
+    # Find all possible locations of beamlets in this row according to geographical location
+    indys = np.where(geolocX == data.xdirection[index])
+    ys = data.ydirection[index][indys]
+    validbeamlets = np.in1d(data.yinter, ys)
+    validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
     # Keep the location of the most leaf
     leftmostleaf = len(ys) # Position in python position(-1) of the leftmost leaf
     nodesinpreviouslevel = 0
     oldflag = nodesinpreviouslevel
     # First handle the calculations for the first row
-    for l in range(math.ceil(max(min(validbeamlets)-1, lcm[0] - vmaxleft * angdistancem/speedlim, lcp[0] - vmaxleft * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[0] + vmaxleft * angdistancem / speedlim, lcp[0] + vmaxleft * angdistancep / speedlim))):
-        for r in range(math.ceil(max(l + 1, rcm[0] - vmaxright * angdistancem/speedlim, rcp[0] - vmaxright * angdistancep / speedlim)), math.floor(min(max(validbeamlets)+1, rcm[0] + vmaxright * angdistancem / speedlim, rcp[0] + vmaxright * angdistancep / speedlim))):
+
+    for l in range(math.ceil(max(min(validbeamlets) - 1, lcm[0] - vmaxm * angdistancem/speedlim, lcp[0] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[0] + vmaxm * angdistancem / speedlim, lcp[0] + vmaxp * angdistancep / speedlim))):
+        for r in range(math.ceil(max(l + 1, rcm[0] - vmaxm * angdistancem/speedlim, rcp[0] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets)+1, rcm[0] + vmaxm * angdistancem / speedlim, rcp[0] + vmaxp * angdistancep / speedlim))):
 
             # First I have to make sure to add the beamlets that I am interested in
             if(l + 1 <= r -1): # prints r numbers starting from l + 1. So range(3,4) = 3
@@ -550,17 +567,20 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         nodesinpreviouslevel = 0
 
         # And now process normally checking against valid beamlets
-        for l in range(math.ceil(max(min(validbeamlets)-1, lcm[m] - vmaxleft * angdistancem/speedlim, lcp[m] - vmaxleft * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[m] + vmaxleft * angdistancem / speedlim, lcp[m] + vmaxleft * angdistancep / speedlim))):
-            for r in range(math.ceil(max(l + 1, rcm[m] - vmaxright * angdistancem/speedlim, rcp[m] - vmaxright * angdistancep / speedlim)), math.floor(min(max(validbeamlets) + 1, rcm[m] + vmaxright * angdistancem / speedlim, rcp[m] + vmaxright * angdistancep / speedlim))):
+        for l in range(math.ceil(max(min(validbeamlets)-1, lcm[m] - vmaxm * angdistancem/speedlim, lcp[m] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[m] + vmaxm * angdistancem / speedlim, lcp[m] + vmaxp * angdistancep / speedlim))):
+            for r in range(math.ceil(max(l + 1, rcm[m] - vmaxm * angdistancem/speedlim, rcp[m] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets) + 1, rcm[m] + vmaxm * angdistancem / speedlim, rcp[m] + vmaxp * angdistancep / speedlim))):
                 # Create node (m, l, r) and update the level counter
                 networkNodes.append([m, l, r, float("inf"), float("inf")])
                 nodesinpreviouslevel = nodesinpreviouslevel + 1
                 thisnode = len(networkNodes) - 1
-                lmlimit = l + leftmostleaf
-                rmlimit = r + leftmostleaf
+                lmlimit = leftmostleaf
+                rmlimit = (r - l) + leftmostleaf
+                if 27 == m:
+                    print(l, r, lmlimit, rmlimit)
+                    print(D.shape)
                 if(lmlimit + 1 <= rmlimit - 1):
                     Dose = - sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.mygradient)
-                    C3simplifier = C3 * b * (rmlimit - lmlimit)
+                    C3simplifier = C3 * b * (r - l)
                 else:
                     Dose = 0.0
                     C3simplifier = 0
@@ -569,8 +589,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                     lambdaletter = math.fabs(networkNodes[mynode][1] - l) + math.fabs(networkNodes[mynode][2] - r) - 2 * max(0, networkNodes[mynode][1] - r) - 2 * max(0, l - math.fabs(networkNodes[mynode][2]))
                     weight = C * (C2 * lambdaletter - C3simplifier) - Dose
                     #print("weight is", weight)
-                    print(networkNodes[mynode][3])
-                    print(networkNodes[thisnode][3])
                     if(networkNodes[mynode][3] + weight < networkNodes[thisnode][3]):
                         networkNodes[thisnode][3] = networkNodes[mynode][3] + weight
                         # And next we look for the minimum distance.
@@ -657,7 +675,9 @@ def solveRMC():
     #nlp = pyipopt.create(nvar, xl, xu, m, g_L, g_U, nnzj, nnzh, evaluateFunction,
     #                     evaluateGradient, eval_g, eval_jac_g)
     print("estoy aqui")
-    res = minimize(evaluateFunction, data.currentIntensities, method='Nelder-Mead', options={'ftol':1e-3,'disp':5,'maxiter':1000,'gtol':1e-3})
+    # res = minimize(evaluateFunction, data.currentIntensities, method='Nelder-Mead', options={'ftol':1e-3,'disp':5,'maxiter':1000,'gtol':1e-3})
+    res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds=[(0, None) for i in range(0, len(data.caligraphicC))], options={'ftol':1e-3,'disp':5,'maxiter':1000,'gtol':1e-3})
+
     nlp.num_option('tol', 1e-5)
     nlp.int_option("print_level", 5)
     nlp.str_option('hessian_approximation', 'limited-memory')
@@ -698,6 +718,7 @@ def colGen():
     while(pstar < 0):
         # Step 1 on Fei's paper. Use the information on the current treatment plan to formulate and solve an instance of the PP
         data.calcDose()
+        data.calcGradient(data.currentDose)
         lcm = data.llist[0]
         rcm = data.rlist[0]
         lcp = data.llist[len(data.llist) - 1]
@@ -718,8 +739,8 @@ def colGen():
                 rcp = data.rlist[pvalue]
         N = len(data.yinter) #N will be related to the Y axis.
         M = len(data.llist[0]) #M will be related to the X axis.
-        p, lm, rm =  PPsubroutine(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, 4, [], N, M, 5)
-        #p, lm, rm, bestAperture = PricingProblem(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, N, M)
+        #p, lm, rm =  PPsubroutine(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, 4, [], N, M, 5)
+        p, lm, rm, bestAperture = PricingProblem(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, N, M)
 
         # Step 2. If the optimal value of the PP is nonnegative**, go to step 5. Otherwise, denote the optimal solution to the
         # PP by c and Ac and replace caligraphic C and A = Abar, k \in caligraphicC

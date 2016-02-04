@@ -105,23 +105,23 @@ class vmat_class:
             for i in self.caligraphicC:
                 ThisDlist = Dlist[i]
                 leftlimits = 0
-                for m in range(0, self.llist[i]):
+                for m in range(0, len(data.llist[0])):
                     # Find geographical values of llist and rlist.
                     # Find geographical location of the first row.
                     geolocX = data.xinter[m]
                     # Find all possible locations of beamlets in this row according to geographical location
-                    indys = np.where(geolocX == data.xdirection[index])
-                    ys = data.ydirection[index][indys]
+                    indys = np.where(geolocX == data.xdirection[i])
+                    ys = data.ydirection[i][indys]
                     validbeamlets = np.in1d(data.yinter, ys)
                     # After next line, validbeamlets contains all beamlets that are "fair game" in this row.
                     validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
                     # First index in this row
-                    indleft = data.llist[index][m] - min(validbeamlets) + 1 + leftlimits
-                    indright = data.rlist[index][m] - min(validbeamlets) - 1 + leftlimits
+                    indleft = data.llist[i][m] - min(validbeamlets) + 1 + leftlimits
+                    indright = data.rlist[i][m] - min(validbeamlets) - 1 + leftlimits
                     # Keep the location of the leftmost leaf
                     leftlimits = leftlimits + len(validbeamlets)
                     if (indleft < indright + 1):
-                        self.currentDose += ThisDlist[[i for i in range(indleft, indright + 1)],:] * np.repeat(self.currentIntensities[i], Dlist[i].shape[1], axis = 0)
+                        self.currentDose += ThisDlist[[ij for ij in range(indleft, indright + 1)],:] * np.repeat(self.currentIntensities[i], Dlist[i].shape[1], axis = 0)
 
     def calcGradientandObjValue(self):
         oDoseObj = self.currentDose - quadHelperThresh
@@ -655,7 +655,7 @@ def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, 
             bestAperture = index
             pstar = p
             besti = i
-    return(pstar, lall[i], rall[i], bestAperture)
+    return(pstar, lall[besti], rall[besti], bestAperture)
 
 def solveRMC():
     ## IPOPT SOLUTION
@@ -674,20 +674,19 @@ def solveRMC():
     
     #nlp = pyipopt.create(nvar, xl, xu, m, g_L, g_U, nnzj, nnzh, evaluateFunction,
     #                     evaluateGradient, eval_g, eval_jac_g)
-    print("estoy aqui")
     # res = minimize(evaluateFunction, data.currentIntensities, method='Nelder-Mead', options={'ftol':1e-3,'disp':5,'maxiter':1000,'gtol':1e-3})
-    res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds=[(0, None) for i in range(0, len(data.caligraphicC))], options={'ftol':1e-3,'disp':5,'maxiter':1000,'gtol':1e-3})
+    res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds=[(0, None) for i in range(0, data.numbeams)], options={'ftol':1e-3,'disp':5,'maxiter':1000,'gtol':1e-3})
 
-    nlp.num_option('tol', 1e-5)
-    nlp.int_option("print_level", 5)
-    nlp.str_option('hessian_approximation', 'limited-memory')
-    nlp.str_option('mu_strategy', 'adaptive')
-    nlp.str_option('mu_oracle', 'probing')
-    nlp.str_option('linear_solver', 'ma97')
-    nlp.num_option('acceptable_tol', 1e-2)
-    nlp.int_option("acceptable_iter", 5)
-    nlp.num_option('acceptable_obj_change_tol', 5e-1)
-    data.currentIntensities = np.zeros(numbe)
+    #nlp.num_option('tol', 1e-5)
+    #nlp.int_option("print_level", 5)
+    #nlp.str_option('hessian_approximation', 'limited-memory')
+    #nlp.str_option('mu_strategy', 'adaptive')
+    #nlp.str_option('mu_oracle', 'probing')
+    #nlp.str_option('linear_solver', 'ma97')
+    #nlp.num_option('acceptable_tol', 1e-2)
+    #nlp.int_option("acceptable_iter", 5)
+    #nlp.num_option('acceptable_obj_change_tol', 5e-1)
+    #data.currentIntensities = np.zeros(numbe)
     #x, zl, zu, constraint_multipliers, obj, status = nlp.solve(data.currentIntensities)
     print('solved in ' + str(time.time() - start) + ' seconds')
     
@@ -703,7 +702,7 @@ def colGen():
 
     # At the beginning no apertures are selected, and those who are not selected are all in notinC
     data.caligraphicC = []
-    data.notinC = range(0, len(Dlist))
+    data.notinC = [i for i in range(0, len(Dlist))]
     # Assign left and right limits to all apertures. Make sure they are closed
     # Find mid range:
     midrange = sum([1 for thisitem in np.unique(data.yinter) if thisitem < 0])
@@ -718,7 +717,7 @@ def colGen():
     while(pstar < 0):
         # Step 1 on Fei's paper. Use the information on the current treatment plan to formulate and solve an instance of the PP
         data.calcDose()
-        data.calcGradient(data.currentDose)
+        data.calcGradientandObjValue()
         lcm = data.llist[0]
         rcm = data.rlist[0]
         lcp = data.llist[len(data.llist) - 1]

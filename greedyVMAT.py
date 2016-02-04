@@ -615,9 +615,9 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     while(1):
         # Find the predecessor data
         print(thenode)
-        thenode = networkNodes[thenode][4]
         l.append(networkNodes[thenode][1])
         r.append(networkNodes[thenode][2])
+        thenode = networkNodes[thenode][4]
         if(0 == thenode): # If at the origin then break.
             break
     l.reverse()

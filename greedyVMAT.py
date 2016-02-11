@@ -18,8 +18,8 @@ from scipy.optimize import minimize
 import time
 import math
 
-#rootFolder = '/media/wilmer/datadrive'
-rootFolder = '/home/wilmer/Documents/Troy_BU'
+rootFolder = '/media/wilmer/datadrive'
+#rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -97,10 +97,19 @@ class vmat_class:
     rlist = []
 
     mygradient = []
+    GradientIntermediate = 0.0
+
     # data class function
     def calcDose(self):
         # self.currentDose = self.Dmat.transpose() * newIntensities
         self.currentDose = np.zeros(self.numvoxels, dtype = float)
+        #gradhelper will have a dimension that is numvoxels x numbeams
+        gradhelper = Dlist[0].sum(axis=0).transpose()
+        for i in range(1, self.numbeams):
+            # Sum all the rows.
+            gradhelper = np.hstack((gradhelper, Dlist[i].sum(axis=0).transpose()))
+        gradhelpershade = gradhelper * 0
+
         if len(self.caligraphicC) != 0:
             for i in self.caligraphicC:
                 ThisDlist = Dlist[i]
@@ -121,7 +130,10 @@ class vmat_class:
                     # Keep the location of the leftmost leaf
                     leftlimits = leftlimits + len(validbeamlets)
                     if (indleft < indright + 1):
-                        self.currentDose += ThisDlist[[ij for ij in range(indleft, indright + 1)],:] * np.repeat(self.currentIntensities[i], Dlist[i].shape[1], axis = 0)
+                        self.currentDose += ThisDlist[[ij for ij in range(indleft, indright + 1)],:].transpose()  * np.repeat(self.currentIntensities[i], (indright - indleft + 1), axis = 0)
+                        gradhelper[[ij for ij in range(indleft, indright + 1)], i] = 1.0
+                        # self.DlistGradient[i][[ij for ij in range(indleft, indright + 1)],i] = ThisDlist[[ij for ij in range(indleft, indright + 1)],:]
+        self.GradientIntermediate = np.multiply(gradhelper, gradhelpershade)
 
     def calcGradientandObjValue(self):
         oDoseObj = self.currentDose - quadHelperThresh
@@ -137,7 +149,11 @@ class vmat_class:
 
         oDoseObjGl = 2 * oDoseObjCl * quadHelperOver
         uDoseObjGl = 2 * uDoseObjCl * quadHelperUnder
+
+        # This is the gradient of dF / dZ. Dimension is numvoxels
         self.mygradient = 2 * (oDoseObjGl - uDoseObjGl)
+        # This is the gradient of dF / dk. Dimension is num Apertures
+        self.scipygradient = self.mygradient * self.GradientIntermediate
 
     # default constructor
     def __init__(self):
@@ -440,29 +456,11 @@ for s in range(0, data.numstructs):
         quadHelperOver[int(data.regions[s].indices[j])] = functionData[1][s]
         quadHelperUnder[int(data.regions[s].indices[j])] = functionData[2][s]
 
-def calcFunction(x, user_data= None):
-    data.currentIntensities = x
-    data.calcDose()
-    oDoseObj = data.currentDose - quadHelperThresh
-    oDoseObj = (oDoseObj > 0) * oDoseObj
-    oDoseObj = oDoseObj * oDoseObj * quadHelperOver
-    uDoseObj = quadHelperThresh - data.currentDose
-    uDoseObj = (uDoseObj > 0) * uDoseObj
-    uDoseObj = uDoseObj * uDoseObj * quadHelperUnder
-    objectiveValue = sum(oDoseObj + uDoseObj)
-    return( objectiveValue )
-
-def calcGradient(x, user_data = None):
-    data.currentIntensities = x
-    data.calcDose()
-    return(data.mygradient)
-
 def calcObjGrad(x, user_data = None):
     data.currentIntensities = x
     data.calcDose()
     data.calcGradientandObjValue()
-    return(data.objectiveValue, data.mygradient)
-
+    return(data.objectiveValue, data.scipygradient)
 
 def eval_g(x, user_data= None):
            return array([], float_)
@@ -575,9 +573,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 thisnode = len(networkNodes) - 1
                 lmlimit = leftmostleaf
                 rmlimit = (r - l) + leftmostleaf
-                if 27 == m:
-                    print(l, r, lmlimit, rmlimit)
-                    print(D.shape)
                 if(lmlimit + 1 <= rmlimit - 1):
                     Dose = - sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.mygradient)
                     C3simplifier = C3 * b * (r - l)
@@ -630,7 +625,9 @@ def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, 
     rall = []
     pstar = float("inf")
     i = 0
-    for index in data.notinC:
+    # This is just for debugging
+    #for index in data.notinC:
+    for index in [0]:
         print("analysing index" , index)
         # Find the succesor and predecessor of this particular element
         succs = [i for i in range(0, data.numbeams) if i > index]
@@ -649,12 +646,13 @@ def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, 
         p, l, r = PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, index)
         lall.append(l)
         rall.append(r)
-        i = i + 1
         # The next "if" will be entered at least once.
         if p < pstar:
             bestAperture = index
             pstar = p
             besti = i
+        i = i + 1
+    print("the best aperture was: ", bestAperture)
     return(pstar, lall[besti], rall[besti], bestAperture)
 
 def solveRMC():
@@ -671,23 +669,13 @@ def solveRMC():
     g_U = np.array([], dtype=float)
     nnzj = 0
     nnzh = int(numbe * (numbe + 1) / 2)
-    
-    #nlp = pyipopt.create(nvar, xl, xu, m, g_L, g_U, nnzj, nnzh, evaluateFunction,
-    #                     evaluateGradient, eval_g, eval_jac_g)
-    # res = minimize(evaluateFunction, data.currentIntensities, method='Nelder-Mead', options={'ftol':1e-3,'disp':5,'maxiter':1000,'gtol':1e-3})
-    res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds=[(0, None) for i in range(0, data.numbeams)], options={'ftol':1e-3,'disp':5,'maxiter':1000,'gtol':1e-3})
 
-    #nlp.num_option('tol', 1e-5)
-    #nlp.int_option("print_level", 5)
-    #nlp.str_option('hessian_approximation', 'limited-memory')
-    #nlp.str_option('mu_strategy', 'adaptive')
-    #nlp.str_option('mu_oracle', 'probing')
-    #nlp.str_option('linear_solver', 'ma97')
-    #nlp.num_option('acceptable_tol', 1e-2)
-    #nlp.int_option("acceptable_iter", 5)
-    #nlp.num_option('acceptable_obj_change_tol', 5e-1)
-    #data.currentIntensities = np.zeros(numbe)
-    #x, zl, zu, constraint_multipliers, obj, status = nlp.solve(data.currentIntensities)
+    # res = minimize(evaluateFunction, data.currentIntensities, method='Nelder-Mead', options={'ftol':1e-3,'disp':5,'maxiter':1000,'gtol':1e-3})
+    calcObjGrad(data.currentIntensities)
+    print("type of x0:", type(data.currentIntensities))
+    print(data.currentIntensities.shape)
+    res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds=[(0, None) for i in range(0, data.numbeams)], options={'ftol':1e-6, 'disp':5,'maxiter':1000})
+
     print('solved in ' + str(time.time() - start) + ' seconds')
     
 def colGen():
@@ -703,6 +691,7 @@ def colGen():
     # At the beginning no apertures are selected, and those who are not selected are all in notinC
     data.caligraphicC = []
     data.notinC = [i for i in range(0, len(Dlist))]
+
     # Assign left and right limits to all apertures. Make sure they are closed
     # Find mid range:
     midrange = sum([1 for thisitem in np.unique(data.yinter) if thisitem < 0])

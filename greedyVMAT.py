@@ -109,13 +109,13 @@ class vmat_class:
             # Sum all the rows.
         #    gradhelper = np.hstack((gradhelper, Dlist[i].sum(axis=0).transpose()))
         # gradhelpershade = gradhelper * 0.0
-        gradhelper = np.zeros((self.numvoxels, self.numbeams))
+        gradhelper = np.matrix(np.zeros((self.numvoxels, self.numbeams)))
         if len(self.caligraphicC) != 0:
             for i in self.caligraphicC:
                 ThisDlist = Dlist[i]
                 #WILMER Change to:
-                #ThisDlistshader = ThisDlist * 0.0
-                ThisDlistshader = ThisDlist * 1.0
+                ThisDlistshader = ThisDlist * 0.0
+                #ThisDlistshader = ThisDlist * 1.0
                 leftlimits = 0
                 for m in range(0, len(data.llist[0])):
                     # Find geographical values of llist and rlist.
@@ -135,9 +135,21 @@ class vmat_class:
                     if (indleft < indright + 1):
                         self.currentDose += ThisDlist[[ij for ij in range(indleft, indright + 1)],:].transpose()  * np.repeat(self.currentIntensities[i], (indright - indleft + 1), axis = 0)
                         # WILMER Change to:
-                        # ThisDlistshader[[ij for ij in range(indleft, indright + 1)],:] = 1.0
-                GIntermediate = np.multiply(ThisDlist, ThisDlistshader).transpose()
-                gradhelper[i,:] = GIntermediate.sum(axis=1)
+                        print('enter1')
+                        diagmaker = np.zeros(ThisDlistshader.shape[0], dtype=float)
+                        print('enter2')
+                        diagmaker[[ij for ij in range(indleft, indright + 1)]] = 1.0
+                        print('enter3')
+                        #templist = np.diag(diagmaker) * ThisDlist
+                        templist = sparse.diags(diagmaker, 0) * ThisDlist
+                        print('enter4')
+                        ThisDlistshader = ThisDlistshader + templist
+                        print('enter5')
+                        #ThisDlistshader[[ij for ij in range(indleft, indright + 1)],:] = 1.0
+                #GIntermediate = np.multiply(ThisDlist, ThisDlistshader).transpose()
+                #gradhelper[i,:] = GIntermediate.sum(axis=1)
+                print(gradhelper.shape)
+                gradhelper[:,i] = ThisDlistshader.transpose().sum(axis=1)
 
         self.GradientIntermediate = gradhelper
 
@@ -157,9 +169,9 @@ class vmat_class:
         uDoseObjGl = 2 * uDoseObjCl * quadHelperUnder
 
         # This is the gradient of dF / dZ. Dimension is numvoxels
-        self.mygradient = np.asmatrix(2 * (oDoseObjGl - uDoseObjGl))
+        self.mygradient = 2 * (oDoseObjGl - uDoseObjGl)
         # This is the gradient of dF / dk. Dimension is num Apertures
-        self.scipygradient = (self.mygradient * self.GradientIntermediate).transpose()
+        self.scipygradient = (np.asmatrix(self.mygradient) * self.GradientIntermediate).transpose()
         # self.scipygradient = self.scipygradient.transpose()
 
     # default constructor
@@ -249,7 +261,7 @@ originalVoxels = np.empty(numVoxels); originalVoxels[:] = np.NAN
 for i in range(0, nVox.astype(np.int64)):
     originalVoxels[data.voxelAssignment[i].astype(np.int64)] = i
 
-## Read in structures WILMER. CHANGE THIS. Reading from txt file != good!!
+## Read in structures . CHANGE THIS. Reading from txt file != good!!
 lines = [myline.split('\t') for myline in [line.rstrip('\n') for line in open(structurefile)]]
 ## Collapse the above expression to a flat list
 invec = [item for sublist in lines for item in sublist]
@@ -544,7 +556,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
 
             # First I have to make sure to add the beamlets that I am interested in
             if(l + 1 <= r -1): # prints r numbers starting from l + 1. So range(3,4) = 3
-                Dose = -sum( D[[i for i in range(l+1, r)],:] * data.mygradient.transpose())
+                Dose = -sum( D[[i for i in range(l+1, r)],:] * data.mygradient)
                 weight = C * ( C2 * (r - l) - C3 * b * (r - l)) - Dose
             else:
                 weight = 0.0
@@ -582,7 +594,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 lmlimit = leftmostleaf
                 rmlimit = (r - l) + leftmostleaf
                 if(lmlimit + 1 <= rmlimit - 1):
-                    Dose = - sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.mygradient.transpose())
+                    Dose = - sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.mygradient)
                     C3simplifier = C3 * b * (r - l)
                 else:
                     Dose = 0.0
@@ -635,6 +647,7 @@ def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, 
     i = 0
     # This is just for debugging
     #for index in data.notinC:
+    # Wilmer. Fix this, this is only going to index 0 for debugging purposes
     for index in [0]:
         print("analysing index" , index)
         # Find the succesor and predecessor of this particular element
@@ -700,12 +713,10 @@ def colGen():
     data.caligraphicC = []
     data.notinC = [i for i in range(0, len(Dlist))]
 
-    # Assign left and right limits to all apertures. Make sure they are closed
-    # Find mid range:
-    midrange = sum([1 for thisitem in np.unique(data.yinter) if thisitem < 0])
+    # Assign very open apertures
     for i in range(0, data.numbeams):
-        data.llist.append([midrange] * len(data.xinter))
-        data.rlist.append([midrange+1] * len(data.xinter))
+        data.llist.append([-1] * len(data.xinter))
+        data.rlist.append([len(data.yinter) + 1] * len(data.xinter))
 
     #Step 0 on Fei's paper. Set C = empty and zbar = 0
     data.calcDose()
@@ -715,24 +726,6 @@ def colGen():
         # Step 1 on Fei's paper. Use the information on the current treatment plan to formulate and solve an instance of the PP
         data.calcDose()
         data.calcGradientandObjValue()
-        lcm = data.llist[0]
-        rcm = data.rlist[0]
-        lcp = data.llist[len(data.llist) - 1]
-        rcp = data.rlist[len(data.rlist) - 1]
-        ## Find largest smaller value in caligraphicC and smallest larger value.
-        if data.caligraphicC:
-            lcv = data.caligraphicC[data.caligraphicC < j]
-            scv = data.calibraphicC[data.caligraphicC > j]
-            mvalue = 0
-            pvalue = data.numbeams - 1
-            if lcv:
-                mvalue = max(lcv)
-                lcm = data.llist[mvalue]
-                rcm = data.rlist[mvalue]
-            if scv:
-                pvalue = min(scv)
-                lcp = data.llist[pvalue]
-                rcp = data.rlist[pvalue]
         N = len(data.yinter) #N will be related to the Y axis.
         M = len(data.llist[0]) #M will be related to the X axis.
         #p, lm, rm =  PPsubroutine(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, 4, [], N, M, 5)

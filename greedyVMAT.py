@@ -19,7 +19,7 @@ import time
 import math
 
 rootFolder = '/media/wilmer/datadrive'
-#rootFolder = '/home/wilmer/Documents/Troy_BU'
+rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -103,16 +103,19 @@ class vmat_class:
     def calcDose(self):
         # self.currentDose = self.Dmat.transpose() * newIntensities
         self.currentDose = np.zeros(self.numvoxels, dtype = float)
-        #gradhelper will have a dimension that is numvoxels x numbeams
-        gradhelper = Dlist[0].sum(axis=0).transpose()
-        for i in range(1, self.numbeams):
+        # gradhelper will have a dimension that is numvoxels x numbeams
+        # gradhelper = Dlist[0].sum(axis=0).transpose()
+        # for i in range(1, self.numbeams):
             # Sum all the rows.
-            gradhelper = np.hstack((gradhelper, Dlist[i].sum(axis=0).transpose()))
-        gradhelpershade = gradhelper * 0
-
+        #    gradhelper = np.hstack((gradhelper, Dlist[i].sum(axis=0).transpose()))
+        # gradhelpershade = gradhelper * 0.0
+        gradhelper = np.zeros((self.numvoxels, self.numbeams))
         if len(self.caligraphicC) != 0:
             for i in self.caligraphicC:
                 ThisDlist = Dlist[i]
+                #WILMER Change to:
+                #ThisDlistshader = ThisDlist * 0.0
+                ThisDlistshader = ThisDlist * 1.0
                 leftlimits = 0
                 for m in range(0, len(data.llist[0])):
                     # Find geographical values of llist and rlist.
@@ -127,13 +130,16 @@ class vmat_class:
                     # First index in this row
                     indleft = data.llist[i][m] - min(validbeamlets) + 1 + leftlimits
                     indright = data.rlist[i][m] - min(validbeamlets) - 1 + leftlimits
-                    # Keep the location of the leftmost leaf
+                    # Keep the location of the le)ftmost leaf
                     leftlimits = leftlimits + len(validbeamlets)
                     if (indleft < indright + 1):
                         self.currentDose += ThisDlist[[ij for ij in range(indleft, indright + 1)],:].transpose()  * np.repeat(self.currentIntensities[i], (indright - indleft + 1), axis = 0)
-                        gradhelper[[ij for ij in range(indleft, indright + 1)], i] = 1.0
-                        # self.DlistGradient[i][[ij for ij in range(indleft, indright + 1)],i] = ThisDlist[[ij for ij in range(indleft, indright + 1)],:]
-        self.GradientIntermediate = np.multiply(gradhelper, gradhelpershade)
+                        # WILMER Change to:
+                        # ThisDlistshader[[ij for ij in range(indleft, indright + 1)],:] = 1.0
+                GIntermediate = np.multiply(ThisDlist, ThisDlistshader).transpose()
+                gradhelper[i,:] = GIntermediate.sum(axis=1)
+
+        self.GradientIntermediate = gradhelper
 
     def calcGradientandObjValue(self):
         oDoseObj = self.currentDose - quadHelperThresh
@@ -151,9 +157,10 @@ class vmat_class:
         uDoseObjGl = 2 * uDoseObjCl * quadHelperUnder
 
         # This is the gradient of dF / dZ. Dimension is numvoxels
-        self.mygradient = 2 * (oDoseObjGl - uDoseObjGl)
+        self.mygradient = np.asmatrix(2 * (oDoseObjGl - uDoseObjGl))
         # This is the gradient of dF / dk. Dimension is num Apertures
-        self.scipygradient = self.mygradient * self.GradientIntermediate
+        self.scipygradient = (self.mygradient * self.GradientIntermediate).transpose()
+        # self.scipygradient = self.scipygradient.transpose()
 
     # default constructor
     def __init__(self):
@@ -194,7 +201,7 @@ def readctvoxelinfo():
         tempocoor.append(int(lines[i].rsplit(None, 1)[-1]))
     coordims = dict(x=tempocoor[0],y=tempocoor[1],z=tempocoor[2])
     return(coordims)
-####################################################################
+#########################################•••••••••###########################
 oldfolder = os.getcwd()
 os.chdir(readfolder)
 allFiles = glob.glob("*VOILIST.mat")
@@ -460,6 +467,7 @@ def calcObjGrad(x, user_data = None):
     data.currentIntensities = x
     data.calcDose()
     data.calcGradientandObjValue()
+    print("data.scipygradient from calcObjGrad: ", data.scipygradient)
     return(data.objectiveValue, data.scipygradient)
 
 def eval_g(x, user_data= None):
@@ -536,7 +544,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
 
             # First I have to make sure to add the beamlets that I am interested in
             if(l + 1 <= r -1): # prints r numbers starting from l + 1. So range(3,4) = 3
-                Dose = -sum( D[[i for i in range(l+1, r)],:] * data.mygradient)
+                Dose = -sum( D[[i for i in range(l+1, r)],:] * data.mygradient.transpose())
                 weight = C * ( C2 * (r - l) - C3 * b * (r - l)) - Dose
             else:
                 weight = 0.0
@@ -574,7 +582,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 lmlimit = leftmostleaf
                 rmlimit = (r - l) + leftmostleaf
                 if(lmlimit + 1 <= rmlimit - 1):
-                    Dose = - sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.mygradient)
+                    Dose = - sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.mygradient.transpose())
                     C3simplifier = C3 * b * (r - l)
                 else:
                     Dose = 0.0

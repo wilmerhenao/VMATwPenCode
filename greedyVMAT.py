@@ -135,16 +135,11 @@ class vmat_class:
                     if (indleft < indright + 1):
                         self.currentDose += ThisDlist[[ij for ij in range(indleft, indright + 1)],:].transpose()  * np.repeat(self.currentIntensities[i], (indright - indleft + 1), axis = 0)
                         # WILMER Change to:
-                        print('enter1')
                         diagmaker = np.zeros(ThisDlistshader.shape[0], dtype=float)
-                        print('enter2')
                         diagmaker[[ij for ij in range(indleft, indright + 1)]] = 1.0
-                        print('enter3')
                         #templist = np.diag(diagmaker) * ThisDlist
                         templist = sparse.diags(diagmaker, 0) * ThisDlist
-                        print('enter4')
                         ThisDlistshader = ThisDlistshader + templist
-                        print('enter5')
                         #ThisDlistshader[[ij for ij in range(indleft, indright + 1)],:] = 1.0
                 #GIntermediate = np.multiply(ThisDlist, ThisDlistshader).transpose()
                 #gradhelper[i,:] = GIntermediate.sum(axis=1)
@@ -377,6 +372,9 @@ for i in range(0, data.numbeams):
         data.xinter = np.intersect1d(data.xinter, data.xdirection[i])
         data.yinter = np.intersect1d(data.yinter, data.ydirection[i])
 ## After reading the beaminfo information. Read CUT the data.
+
+N = len(data.yinter) #N will be related to the Y axis.
+M = len(data.xinter) #M will be related to the X axis.
 
 ###################################################
 ## Initial intensities are allocated a value of zero.
@@ -726,8 +724,6 @@ def colGen():
         # Step 1 on Fei's paper. Use the information on the current treatment plan to formulate and solve an instance of the PP
         data.calcDose()
         data.calcGradientandObjValue()
-        N = len(data.yinter) #N will be related to the Y axis.
-        M = len(data.llist[0]) #M will be related to the X axis.
         #p, lm, rm =  PPsubroutine(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, 4, [], N, M, 5)
         p, lm, rm, bestAperture = PricingProblem(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, N, M)
 

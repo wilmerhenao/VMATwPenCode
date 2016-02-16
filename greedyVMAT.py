@@ -495,11 +495,11 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     # angdistancep = $\delta_{cc^+}$
     # vmax = maximum leaf speed
     # speedlim = s
-    # predec = predecesor index
-    # succ = succesor index
+    # predec = predecesor index, either an index or an empty list
+    # succ = succesor index, either an index or an empty list
     # lcm = vector of left limits in the previous aperture
     # lcp = vector of left limits in the next aperture
-    # rcm = vector of left limits in the previous aperture
+    # rcm = vector of right limits in the previous aperture
     # rcp = vector of right limits in the previous aperture
     # N = Number of beamlets per row
     # M = Number of rows in an aperture
@@ -649,8 +649,8 @@ def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, 
     for index in [0]:
         print("analysing index" , index)
         # Find the succesor and predecessor of this particular element
-        succs = [i for i in range(0, data.numbeams) if i > index]
-        predecs = [i for i in range(0, data.numbeams) if i < index]
+        succs = [i for i in range(0, data.caligraphicC) if i > index]
+        predecs = [i for i in range(0, data.caligraphicC) if i < index]
 
         # If there are no predecessors or succesors just return an empty list. If there ARE, then return the indices
         if 0 == len(succs):

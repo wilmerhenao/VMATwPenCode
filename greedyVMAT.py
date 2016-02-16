@@ -707,17 +707,19 @@ def colGen():
     vmax = 2.0
     speedlim = 3.0
 
-    # At the beginning no apertures are selected, and those who are not selected are all in notinC
-    data.caligraphicC = []
-    data.notinC = [i for i in range(0, len(Dlist))]
 
-    # Assign very open apertures
+    # Assign the most open apertures as initial apertures. They will not have any energy applied to them.
     for i in range(0, data.numbeams):
         data.llist.append([-1] * len(data.xinter))
         data.rlist.append([len(data.yinter) + 1] * len(data.xinter))
 
-    #Step 0 on Fei's paper. Set C = empty and zbar = 0
+    #Step 0 on Fei's paper. Set C = empty and zbar = 0. The gradient of numbeams dimensions generated here will not
+    # be used, and therefore is nothing to worry about.
     data.calcDose()
+
+    # At the beginning no apertures are selected, and those who are not selected are all in notinC
+    data.caligraphicC = []
+    data.notinC = [i for i in range(0, len(Dlist))]
 
     pstar = -float("inf")
     while(pstar < 0):
@@ -735,7 +737,8 @@ def colGen():
             data.caligraphicC.append(bestAperture)
             data.caligraphicC.sort()
             data.notinC.remove(bestAperture)
-            # Solve the instance of the RMP associated with caligraphicC and Ak = Akbar, k \in caligraphicC
+            data.notinC.sort()
+            # Solve the instance of the RMP associated with caligraphicC and Ak = A_k^bar, k \in caligraphicC
             data.llist[bestAperture] = lm
             data.rlist[bestAperture] = rm
             solveRMC()

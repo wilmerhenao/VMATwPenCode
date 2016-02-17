@@ -97,6 +97,7 @@ class vmat_class:
     rlist = []
 
     mygradient = []
+    scipygradient = []
     GradientIntermediate = 0.0
 
     # data class function
@@ -167,7 +168,6 @@ class vmat_class:
         self.mygradient = 2 * (oDoseObjGl - uDoseObjGl)
         # This is the gradient of dF / dk. Dimension is num Apertures
         self.scipygradient = (np.asmatrix(self.mygradient) * self.GradientIntermediate).transpose()
-        # self.scipygradient = self.scipygradient.transpose()
 
     # default constructor
     def __init__(self):
@@ -477,7 +477,7 @@ def calcObjGrad(x, user_data = None):
     data.currentIntensities = x
     data.calcDose()
     data.calcGradientandObjValue()
-    print("data.scipygradient from calcObjGrad: ", data.scipygradient)
+    print("data.scipygradient from: ", data.scipygradient)
     return(data.objectiveValue, data.scipygradient)
 
 def eval_g(x, user_data= None):
@@ -646,7 +646,8 @@ def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, 
     # This is just for debugging
     #for index in data.notinC:
     # Wilmer. Fix this, this is only going to index 0 for debugging purposes
-    for index in data.notinc:
+    #for index in data.notinC:
+    for index in [0]:
         print("analysing index" , index)
         # Find the succesor and predecessor of this particular element
         try:
@@ -695,18 +696,16 @@ def solveRMC():
     nnzj = 0
     nnzh = int(numbe * (numbe + 1) / 2)
 
-    # res = minimize(evaluateFunction, data.currentIntensities, method='Nelder-Mead', options={'ftol':1e-3,'disp':5,'maxiter':1000,'gtol':1e-3})
     calcObjGrad(data.currentIntensities)
     print("type of x0:", type(data.currentIntensities))
     print(data.currentIntensities.shape)
     # Create the boundaries making sure that the only free variables are the ones with perfectly defined apertures.
     boundschoice = []
-    [(0, None) for i in range(0, data.numbeams)]
-    for thisindex in data.numbeams:
+    for thisindex in range(0, data.numbeams):
         if thisindex in data.notinC:
-            boundschoice.append((0,0))
+            boundschoice.append((0, 0))
         else:
-            boundschoice.append((0, none))
+            boundschoice.append((0, None))
     print(boundschoice)
     res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds = boundschoice, options={'ftol':1e-6, 'disp':5,'maxiter':1000})
 
@@ -759,8 +758,8 @@ def colGen():
             data.rlist[bestAperture] = rm
             solveRMC()
 
-    #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
-    #notinC and denote the final set of fluence rates by yk
+            #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
+            #notinC and denote the final set of fluence rates by yk
 
 
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')

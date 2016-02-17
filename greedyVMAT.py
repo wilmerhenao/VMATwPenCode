@@ -759,9 +759,90 @@ def colGen():
             data.llist[bestAperture] = lm
             data.rlist[bestAperture] = rm
             solveRMC()
+            printresults()
 
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
             #notinC and denote the final set of fluence rates by yk
+
+
+# The next function prints DVH values
+def printresults():
+    numzvectors = 1
+    maskValueFull = [int(i) for i in data.fullMaskValue]
+    maskValueFull = np.array(maskValueFull)
+    print('Starting to Print Results')
+    for i in range(0, numzvectors):
+        zvalues = data.currentDose
+        maxDose = max([float(i) for i in zvalues])
+        dose_resln = 0.1
+        dose_ub = maxDose + 10
+        bin_center = np.arange(0,dose_ub,dose_resln)
+        # Generate holder matrix
+        dvh_matrix = np.zeros((data.numstructs, len(bin_center)))
+        lenintervalhalf = bin_center[1]/2
+        # iterate through each structure
+        for s in range(0,data.numstructs):
+            allNames[s] = allNames[s].replace("_VOILIST.mat", "")
+            #print('determining DVH for ' + pickstructs[s])
+            print('dvh for structure' + str(s))
+            doseHolder = zvalues[[i for i,v in enumerate(maskValueFull & 2**s) if v > 0]]
+            if 0 == len(doseHolder):
+                continue
+            histHolder = []
+            for i in bin_center:
+                histHolder.append(sum(doseHolder < (i - lenintervalhalf)))
+            dvhHolder = 1-(np.matrix(histHolder)/max(histHolder))
+            dvh_matrix[s,] = dvhHolder
+
+    pylab.plot(bin_center, dvh_matrix.T, linewidth = 2.0)
+    plt.grid(True)
+
+    plt.xlabel('Dose Gray')
+    plt.ylabel('Fractional Volume')
+    plt.title('pyipopt 6 beams')
+
+    ## special organs to plot
+    dvhmatrixsafe = dvh_matrix
+
+    dvh_matrix = dvhmatrixsafe
+    voitoplot = [18, 23, 17, 2, 8]
+    dvhsub = dvh_matrix[voitoplot,]
+    pylab.plot(bin_center, dvhsub.T, linewidth = 2.0)
+
+    numstructs = 25
+    dosefile = "/home/wilmer/Dropbox/IpOptSolver/currentDose.txt"
+    zvalues = [ float(line.rstrip('\n'))  for line in open(dosefile)]
+    maskvaluefile = "/home/wilmer/Dropbox/IpOptSolver/currentMaskValue.txt"
+    maskValueF = [ int(line.rstrip('\n'))  for line in open(maskvaluefile)]
+    maskValue = np.array(maskValueF)
+
+    maxDose = max([i for i in zvalues])
+    dose_resln = 0.1
+    dose_ub = maxDose + 10
+    bin_center = np.arange(0, dose_ub, dose_resln)
+    dvh_matrix = np.zeros((numstructs, len(bin_center)))
+    lenintervalhalf = bin_center[1]/2
+    i=0
+
+    for s in range(0, numstructs):
+        a = [i for i,v in enumerate(maskValue & 2**s) if v > 0]
+        doseHolder = [zvalues[i] for i in a]
+        if 0 == len(doseHolder):
+            continue
+        histHolder = []
+        for i in bin_center:
+            histHolder.append(sum(doseHolder < (i - lenintervalhalf)))
+        dvhHolder = 1-(np.matrix(histHolder) / max(histHolder))
+        dvh_matrix[s,] = dvhHolder
+
+    #pylab.plot(bin_center, alt.T, linewidth = 2.0)
+    dvhsub2 = dvh_matrix[voitoplot,]
+    pylab.plot(bin_center, dvhsub2.T, linewidth = 1.0, linestyle = '--')
+    plt.grid(True)
+
+    plt.xlabel('Dose Gray')
+    plt.ylabel('Fractional Volume')
+    plt.title('ipopt 6 beams')
 
 
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')

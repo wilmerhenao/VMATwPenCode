@@ -19,7 +19,7 @@ import time
 import math
 
 rootFolder = '/media/wilmer/datadrive'
-rootFolder = '/home/wilmer/Documents/Troy_BU'
+# rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -646,11 +646,17 @@ def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, 
     # This is just for debugging
     #for index in data.notinC:
     # Wilmer. Fix this, this is only going to index 0 for debugging purposes
-    for index in [0]:
+    for index in data.notinc:
         print("analysing index" , index)
         # Find the succesor and predecessor of this particular element
-        succs = [i for i in range(0, data.caligraphicC) if i > index]
-        predecs = [i for i in range(0, data.caligraphicC) if i < index]
+        try:
+            succs = [i for i in range(0, data.caligraphicC) if i > index]
+        except:
+            succs = []
+        try:
+            predecs = [i for i in range(0, data.caligraphicC) if i < index]
+        except:
+            predecs = []
 
         # If there are no predecessors or succesors just return an empty list. If there ARE, then return the indices
         if 0 == len(succs):
@@ -693,7 +699,16 @@ def solveRMC():
     calcObjGrad(data.currentIntensities)
     print("type of x0:", type(data.currentIntensities))
     print(data.currentIntensities.shape)
-    res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds=[(0, None) for i in range(0, data.numbeams)], options={'ftol':1e-6, 'disp':5,'maxiter':1000})
+    # Create the boundaries making sure that the only free variables are the ones with perfectly defined apertures.
+    boundschoice = []
+    [(0, None) for i in range(0, data.numbeams)]
+    for thisindex in data.numbeams:
+        if thisindex in data.notinC:
+            boundschoice.append((0,0))
+        else:
+            boundschoice.append((0, none))
+    print(boundschoice)
+    res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds = boundschoice, options={'ftol':1e-6, 'disp':5,'maxiter':1000})
 
     print('solved in ' + str(time.time() - start) + ' seconds')
     
@@ -736,6 +751,7 @@ def colGen():
         else:
             data.caligraphicC.append(bestAperture)
             data.caligraphicC.sort()
+            print("best Aperture is:", bestAperture)
             data.notinC.remove(bestAperture)
             data.notinC.sort()
             # Solve the instance of the RMP associated with caligraphicC and Ak = A_k^bar, k \in caligraphicC

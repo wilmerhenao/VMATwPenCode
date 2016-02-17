@@ -17,6 +17,8 @@ from scipy import sparse
 from scipy.optimize import minimize
 import time
 import math
+#import _thread
+
 
 rootFolder = '/media/wilmer/datadrive'
 # rootFolder = '/home/wilmer/Documents/Troy_BU'
@@ -646,8 +648,8 @@ def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, 
     # This is just for debugging
     #for index in data.notinC:
     # Wilmer. Fix this, this is only going to index 0 for debugging purposes
-    #for index in data.notinC:
-    for index in [0]:
+    for index in data.notinC:
+    #for index in [0]:
         print("analysing index" , index)
         # Find the succesor and predecessor of this particular element
         try:

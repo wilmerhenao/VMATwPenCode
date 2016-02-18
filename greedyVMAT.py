@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 
 
 rootFolder = '/media/wilmer/datadrive'
-# rootFolder = '/home/wilmer/Documents/Troy_BU'
+rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -739,6 +739,7 @@ def colGen():
     data.notinC = [i for i in range(0, len(Dlist))]
 
     pstar = -float("inf")
+    plotcounter = 0
     while(pstar < 0):
         # Step 1 on Fei's paper. Use the information on the current treatment plan to formulate and solve an instance of the PP
         data.calcDose()
@@ -760,14 +761,15 @@ def colGen():
             data.llist[bestAperture] = lm
             data.rlist[bestAperture] = rm
             solveRMC()
-            printresults()
+            plotcounter = plotcounter + 1
+            printresults(plotcounter)
 
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
             #notinC and denote the final set of fluence rates by yk
 
 
 # The next function prints DVH values
-def printresults():
+def printresults(iterationNumber):
     numzvectors = 1
     maskValueFull = [int(i) for i in data.fullMaskValue]
     maskValueFull = np.array(maskValueFull)
@@ -792,24 +794,26 @@ def printresults():
             histHolder = []
             print('is this the problem:', s)
             carryinfo = 0
-            for i in bin_center:
-                print(i)
-                candidatestoadd = (doseHolder < (i - lenintervalhalf))
-                carryinfo = sum(candidatestoadd) + carryinfo
-                histHolder.append(carryinfo)
-                doseHolder = np.delete(doseHolder, np.where(doseHolder < (i - lenintervalhalf)))
+            histHolder, garbage = np.histogram(doseHolder, bin_center)
+            histHolder = np.append(histHolder, 0)
+            histHolder = np.cumsum(histHolder)
+            #for i in bin_center:
+            #    print(i)
+            #    candidatestoadd = (doseHolder < (i - lenintervalhalf))
+            #    carryinfo = sum(candidatestoadd) + carryinfo
+            #    histHolder.append(carryinfo)
+            #    doseHolder = np.delete(doseHolder, np.where(doseHolder < (i - lenintervalhalf)))
 
             print('that took long, bin_center had positions:', len(bin_center))
             dvhHolder = 1-(np.matrix(histHolder)/max(histHolder))
             dvh_matrix[s,] = dvhHolder
-
-    pylab.plot(bin_center, dvh_matrix.T, linewidth = 2.0)
+    myfig = pylab.plot(bin_center, dvh_matrix.T, linewidth = 2.0)
     plt.grid(True)
 
     plt.xlabel('Dose Gray')
     plt.ylabel('Fractional Volume')
     plt.title('pyipopt 6 beams')
-    pylab.savefig('/home/wilmer/Dropbox/Research/VMAT/foo' + time() + '.png')
+    plt.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/DVHatIteration' + str(iterationNumber) + 'greedyVMAT.png')
     #plt.show()
 
     ## special organs to plot

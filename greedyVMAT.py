@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/home/wilmer/anaconda3/bin/python
 
 __author__ = 'wilmer'
 try:
@@ -17,6 +17,8 @@ from scipy import sparse
 from scipy.optimize import minimize
 import time
 import math
+import pylab
+import matplotlib.pyplot as plt
 #import _thread
 
 
@@ -629,7 +631,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     r = []
     while(1):
         # Find the predecessor data
-        print(thenode)
         l.append(networkNodes[thenode][1])
         r.append(networkNodes[thenode][2])
         thenode = networkNodes[thenode][4]
@@ -648,8 +649,8 @@ def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, 
     # This is just for debugging
     #for index in data.notinC:
     # Wilmer. Fix this, this is only going to index 0 for debugging purposes
-    for index in data.notinC:
-    #for index in [0]:
+    #for index in data.notinC:
+    for index in [0]:
         print("analysing index" , index)
         # Find the succesor and predecessor of this particular element
         try:
@@ -785,12 +786,16 @@ def printresults():
             allNames[s] = allNames[s].replace("_VOILIST.mat", "")
             #print('determining DVH for ' + pickstructs[s])
             print('dvh for structure' + str(s))
-            doseHolder = zvalues[[i for i,v in enumerate(maskValueFull & 2**s) if v > 0]]
+            doseHolder = np.array(zvalues[[i for i,v in enumerate(maskValueFull & 2**s) if v > 0]])
+            doseHolder.sort()
             if 0 == len(doseHolder):
                 continue
             histHolder = []
+            print('is this the problem:', s)
             for i in bin_center:
+                print(i)
                 histHolder.append(sum(doseHolder < (i - lenintervalhalf)))
+            print('that took long, bin_center had positions:', len(bin_center))
             dvhHolder = 1-(np.matrix(histHolder)/max(histHolder))
             dvh_matrix[s,] = dvhHolder
 
@@ -809,40 +814,40 @@ def printresults():
     dvhsub = dvh_matrix[voitoplot,]
     pylab.plot(bin_center, dvhsub.T, linewidth = 2.0)
 
-    numstructs = 25
-    dosefile = "/home/wilmer/Dropbox/IpOptSolver/currentDose.txt"
-    zvalues = [ float(line.rstrip('\n'))  for line in open(dosefile)]
-    maskvaluefile = "/home/wilmer/Dropbox/IpOptSolver/currentMaskValue.txt"
-    maskValueF = [ int(line.rstrip('\n'))  for line in open(maskvaluefile)]
-    maskValue = np.array(maskValueF)
-
-    maxDose = max([i for i in zvalues])
-    dose_resln = 0.1
-    dose_ub = maxDose + 10
-    bin_center = np.arange(0, dose_ub, dose_resln)
-    dvh_matrix = np.zeros((numstructs, len(bin_center)))
-    lenintervalhalf = bin_center[1]/2
-    i=0
-
-    for s in range(0, numstructs):
-        a = [i for i,v in enumerate(maskValue & 2**s) if v > 0]
-        doseHolder = [zvalues[i] for i in a]
-        if 0 == len(doseHolder):
-            continue
-        histHolder = []
-        for i in bin_center:
-            histHolder.append(sum(doseHolder < (i - lenintervalhalf)))
-        dvhHolder = 1-(np.matrix(histHolder) / max(histHolder))
-        dvh_matrix[s,] = dvhHolder
-
-    #pylab.plot(bin_center, alt.T, linewidth = 2.0)
-    dvhsub2 = dvh_matrix[voitoplot,]
-    pylab.plot(bin_center, dvhsub2.T, linewidth = 1.0, linestyle = '--')
-    plt.grid(True)
-
-    plt.xlabel('Dose Gray')
-    plt.ylabel('Fractional Volume')
-    plt.title('ipopt 6 beams')
+    # numstructs = 25
+    # dosefile = "/home/wilmer/Dropbox/IpOptSolver/currentDose.txt"
+    # zvalues = [ float(line.rstrip('\n'))  for line in open(dosefile)]
+    # maskvaluefile = "/home/wilmer/Dropbox/IpOptSolver/currentMaskValue.txt"
+    # maskValueF = [ int(line.rstrip('\n'))  for line in open(maskvaluefile)]
+    # maskValue = np.array(maskValueF)
+    #
+    # maxDose = max([i for i in zvalues])
+    # dose_resln = 0.1
+    # dose_ub = maxDose + 10
+    # bin_center = np.arange(0, dose_ub, dose_resln)
+    # dvh_matrix = np.zeros((numstructs, len(bin_center)))
+    # lenintervalhalf = bin_center[1]/2
+    # i=0
+    #
+    # for s in range(0, numstructs):
+    #     a = [i for i,v in enumerate(maskValue & 2**s) if v > 0]
+    #     doseHolder = [zvalues[i] for i in a]
+    #     if 0 == len(doseHolder):
+    #         continue
+    #     histHolder = []
+    #     for i in bin_center:
+    #         histHolder.append(sum(doseHolder < (i - lenintervalhalf)))
+    #     dvhHolder = 1-(np.matrix(histHolder) / max(histHolder))
+    #     dvh_matrix[s,] = dvhHolder
+    #
+    # #pylab.plot(bin_center, alt.T, linewidth = 2.0)
+    # dvhsub2 = dvh_matrix[voitoplot,]
+    # pylab.plot(bin_center, dvhsub2.T, linewidth = 1.0, linestyle = '--')
+    # plt.grid(True)
+    #
+    # plt.xlabel('Dose Gray')
+    # plt.ylabel('Fractional Volume')
+    # plt.title('ipopt 6 beams')
 
 
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')

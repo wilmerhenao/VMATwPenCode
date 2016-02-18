@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 
 
 rootFolder = '/media/wilmer/datadrive'
-rootFolder = '/home/wilmer/Documents/Troy_BU'
+#rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -809,17 +809,17 @@ def printresults(iterationNumber):
             dvh_matrix[s,] = dvhHolder
     myfig = pylab.plot(bin_center, dvh_matrix.T, linewidth = 2.0)
     plt.grid(True)
-
     plt.xlabel('Dose Gray')
     plt.ylabel('Fractional Volume')
-    plt.title('pyipopt 6 beams')
-    plt.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/DVHatIteration' + str(iterationNumber) + 'greedyVMAT.png')
+    plt.title('6 beams iteration: ' + str(iterationNumber))
+    plt.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/DVH-at-Iteration' + str(iterationNumber) + 'greedyVMAT.png')
+    plt.close()
     #plt.show()
 
     ## special organs to plot
     #dvhmatrixsafe = dvh_matrix
     #dvh_matrix = dvhmatrixsafe
-    #voitoplot = [18, 23, 17, 2, 8]
+    voitoplot = [18, 23, 17, 2, 8]
     #dvhsub = dvh_matrix[voitoplot,]
     #pylab.plot(bin_center, dvhsub.T, linewidth = 2.0)
     # numstructs = 25
@@ -849,18 +849,20 @@ def printresults(iterationNumber):
     #     dvh_matrix[s,] = dvhHolder
     #
     # #pylab.plot(bin_center, alt.T, linewidth = 2.0)
-    # dvhsub2 = dvh_matrix[voitoplot,]
-    # pylab.plot(bin_center, dvhsub2.T, linewidth = 1.0, linestyle = '--')
-    # plt.grid(True)
-    #
-    # plt.xlabel('Dose Gray')
-    # plt.ylabel('Fractional Volume')
-    # plt.title('ipopt 6 beams')
-
+    dvhsub2 = dvh_matrix[voitoplot,]
+    myfig2 = pylab.plot(bin_center, dvhsub2.T, linewidth = 1.0, linestyle = '--')
+    plt.grid(True)
+    plt.xlabel('Dose Gray')
+    plt.ylabel('Fractional Volume')
+    plt.title('6 beams iteration:' + str(iterationNumber))
+    plt.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/DVH-at-Iteration-Subplot' + str(iterationNumber) + 'greedyVMAT.png')
+    plt.close()
 
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')
 
 colGen()
+
+print('The whole program took: '  + str(time.time()-start) + ' seconds to finish')
 
 # PYTHON scipy.optimize solution
 

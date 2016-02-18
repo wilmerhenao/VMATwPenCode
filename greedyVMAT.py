@@ -649,8 +649,8 @@ def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, 
     # This is just for debugging
     #for index in data.notinC:
     # Wilmer. Fix this, this is only going to index 0 for debugging purposes
-    #for index in data.notinC:
-    for index in [0]:
+    for index in data.notinC:
+    #for index in [0]:
         print("analysing index" , index)
         # Find the succesor and predecessor of this particular element
         try:
@@ -786,15 +786,19 @@ def printresults():
             allNames[s] = allNames[s].replace("_VOILIST.mat", "")
             #print('determining DVH for ' + pickstructs[s])
             print('dvh for structure' + str(s))
-            doseHolder = np.array(zvalues[[i for i,v in enumerate(maskValueFull & 2**s) if v > 0]])
-            doseHolder.sort()
+            doseHolder = sorted(zvalues[[i for i,v in enumerate(maskValueFull & 2**s) if v > 0]])
             if 0 == len(doseHolder):
                 continue
             histHolder = []
             print('is this the problem:', s)
+            carryinfo = 0
             for i in bin_center:
                 print(i)
-                histHolder.append(sum(doseHolder < (i - lenintervalhalf)))
+                candidatestoadd = (doseHolder < (i - lenintervalhalf))
+                carryinfo = sum(candidatestoadd) + carryinfo
+                histHolder.append(carryinfo)
+                doseHolder = np.delete(doseHolder, np.where(doseHolder < (i - lenintervalhalf)))
+
             print('that took long, bin_center had positions:', len(bin_center))
             dvhHolder = 1-(np.matrix(histHolder)/max(histHolder))
             dvh_matrix[s,] = dvhHolder
@@ -805,15 +809,15 @@ def printresults():
     plt.xlabel('Dose Gray')
     plt.ylabel('Fractional Volume')
     plt.title('pyipopt 6 beams')
+    pylab.savefig('/home/wilmer/Dropbox/Research/VMAT/foo' + time() + '.png')
+    #plt.show()
 
     ## special organs to plot
-    dvhmatrixsafe = dvh_matrix
-
-    dvh_matrix = dvhmatrixsafe
-    voitoplot = [18, 23, 17, 2, 8]
-    dvhsub = dvh_matrix[voitoplot,]
-    pylab.plot(bin_center, dvhsub.T, linewidth = 2.0)
-
+    #dvhmatrixsafe = dvh_matrix
+    #dvh_matrix = dvhmatrixsafe
+    #voitoplot = [18, 23, 17, 2, 8]
+    #dvhsub = dvh_matrix[voitoplot,]
+    #pylab.plot(bin_center, dvhsub.T, linewidth = 2.0)
     # numstructs = 25
     # dosefile = "/home/wilmer/Dropbox/IpOptSolver/currentDose.txt"
     # zvalues = [ float(line.rstrip('\n'))  for line in open(dosefile)]

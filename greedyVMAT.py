@@ -639,6 +639,8 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
 def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, M):
     lall = []
     rall = []
+    lallret = []
+    rallret = []
     pstar = float("inf")
     i = 0
 
@@ -677,12 +679,14 @@ def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, 
         if p < pstar:
             bestAperture = index
             pstar = p
-            besti = i
+            rallret = rall[i]
+            lallret = lall[i]
+
         i = i + 1
+
     print("the best aperture was: ", bestAperture)
-    if None == bestAperture:
-        besti = 0
-    return(pstar, lall[besti], rall[besti], bestAperture)
+
+    return(pstar, lallret, rallret, bestAperture)
 
 def solveRMC():
     ## IPOPT SOLUTION
@@ -806,7 +810,7 @@ def colGen(C):
             data.rlist[bestAperture] = rm
             solveRMC()
             plotcounter = plotcounter + 1
-            printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics')
+            printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
 
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
             #notinC and denote the final set of fluence rates by yk
@@ -817,11 +821,15 @@ def colGen(C):
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')
 
 colps = [] #colection of pstar values
-for c in [1.0]:
-#for c = range(0, 10, 1):
-    colps.append(colGen(c/10))
+#for c in [1.0]:
+for c in range(0, 20):
+    colps.append(colGen(c/20))
 
 print('The whole program took: '  + str(time.time()-start) + ' seconds to finish')
+
+myplot = plt.plot(colps)
+plt.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/variationofC.png')
+plt.show()
 
 # PYTHON scipy.optimize solution
 

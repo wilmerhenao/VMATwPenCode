@@ -148,7 +148,6 @@ class vmat_class:
                         #ThisDlistshader[[ij for ij in range(indleft, indright + 1)],:] = 1.0
                 #GIntermediate = np.multiply(ThisDlist, ThisDlistshader).transpose()
                 #gradhelper[i,:] = GIntermediate.sum(axis=1)
-                print(gradhelper.shape)
                 gradhelper[:,i] = ThisDlistshader.transpose().sum(axis=1)
 
         self.GradientIntermediate = gradhelper
@@ -326,7 +325,6 @@ ga=[];
 ca=[];
 
 ## Treatment of BEAMINFO data
-
 os.chdir(readfolderD)
 for g in range(gastart, gaend, gastep):
     fname = 'Gantry' + str(g) + '_Couch' + str(0) + '_D.mat'
@@ -481,7 +479,6 @@ def calcObjGrad(x, user_data = None):
     data.currentIntensities = x
     data.calcDose()
     data.calcGradientandObjValue()
-    print("data.scipygradient from: ", data.scipygradient)
     return(data.objectiveValue, data.scipygradient)
 
 def eval_g(x, user_data= None):
@@ -614,7 +611,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         # Keep the location of the leftmost leaf
         leftmostleaf = len(ys) + leftmostleaf
 
-    print("And last. Add the arcs to the sink")
     networkNodes.append([M, float("inf"), float("inf"), float("inf"), float("inf")])
     posBeginningOfRow = posBeginningOfRow + 1 # Notice that this position right now falls outside the array! Here only for illustration.
     thisnode = len(networkNodes) - 1
@@ -638,7 +634,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
             break
     l.reverse()
     r.reverse()
-    print(p)
     return(p, l, r)
 
 def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, M):
@@ -646,9 +641,12 @@ def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, 
     rall = []
     pstar = float("inf")
     i = 0
+
+    bestAperture = None
     # This is just for debugging
     #for index in data.notinC:
     # Wilmer. Fix this, this is only going to index 0 for debugging purposes
+
     for index in data.notinC:
     #for index in [0]:
         print("analysing index" , index)
@@ -682,6 +680,8 @@ def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, 
             besti = i
         i = i + 1
     print("the best aperture was: ", bestAperture)
+    if None == bestAperture:
+        besti = 0
     return(pstar, lall[besti], rall[besti], bestAperture)
 
 def solveRMC():
@@ -700,8 +700,6 @@ def solveRMC():
     nnzh = int(numbe * (numbe + 1) / 2)
 
     calcObjGrad(data.currentIntensities)
-    print("type of x0:", type(data.currentIntensities))
-    print(data.currentIntensities.shape)
     # Create the boundaries making sure that the only free variables are the ones with perfectly defined apertures.
     boundschoice = []
     for thisindex in range(0, data.numbeams):
@@ -709,14 +707,59 @@ def solveRMC():
             boundschoice.append((0, 0))
         else:
             boundschoice.append((0, None))
-    print(boundschoice)
     res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds = boundschoice, options={'ftol':1e-6, 'disp':5,'maxiter':1000})
 
     print('solved in ' + str(time.time() - start) + ' seconds')
+
+# The next function prints DVH values
+def printresults(iterationNumber, myfolder):
+    numzvectors = 1
+    maskValueFull = [int(i) for i in data.fullMaskValue]
+    maskValueFull = np.array(maskValueFull)
+    print('Starting to Print Results')
+    for i in range(0, numzvectors):
+        zvalues = data.currentDose
+        maxDose = max([float(i) for i in zvalues])
+        dose_resln = 0.1
+        dose_ub = maxDose + 10
+        bin_center = np.arange(0,dose_ub,dose_resln)
+        # Generate holder matrix
+        dvh_matrix = np.zeros((data.numstructs, len(bin_center)))
+        lenintervalhalf = bin_center[1]/2
+        # iterate through each structure
+        for s in range(0,data.numstructs):
+            allNames[s] = allNames[s].replace("_VOILIST.mat", "")
+            doseHolder = sorted(zvalues[[i for i,v in enumerate(maskValueFull & 2**s) if v > 0]])
+            if 0 == len(doseHolder):
+                continue
+            histHolder = []
+            carryinfo = 0
+            histHolder, garbage = np.histogram(doseHolder, bin_center)
+            histHolder = np.append(histHolder, 0)
+            histHolder = np.cumsum(histHolder)
+            dvhHolder = 1-(np.matrix(histHolder)/max(histHolder))
+            dvh_matrix[s,] = dvhHolder
+
+    myfig = pylab.plot(bin_center, dvh_matrix.T, linewidth = 2.0)
+    plt.grid(True)
+    plt.xlabel('Dose Gray')
+    plt.ylabel('Fractional Volume')
+    plt.title('6 beams iteration: ' + str(iterationNumber))
+    plt.savefig(myfolder + 'DVH-at-Iteration' + str(iterationNumber) + 'greedyVMAT.png')
+    plt.close()
+
+    voitoplot = [18, 23, 17, 2, 8]
+    dvhsub2 = dvh_matrix[voitoplot,]
+    myfig2 = pylab.plot(bin_center, dvhsub2.T, linewidth = 1.0, linestyle = '--')
+    plt.grid(True)
+    plt.xlabel('Dose Gray')
+    plt.ylabel('Fractional Volume')
+    plt.title('6 beams iteration:' + str(iterationNumber))
+    plt.savefig(myfolder + 'DVH-at-Iteration-Subplot' + str(iterationNumber) + 'greedyVMAT.png')
+    plt.close()
     
-def colGen():
+def colGen(C):
     # User defined data
-    C = 1.0
     C2 = 1.0
     C3 = 1.0
     angdistancem = 60
@@ -745,11 +788,12 @@ def colGen():
         data.calcDose()
         data.calcGradientandObjValue()
         #p, lm, rm =  PPsubroutine(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, 4, [], N, M, 5)
-        p, lm, rm, bestAperture = PricingProblem(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, N, M)
+        pstar, lm, rm, bestAperture = PricingProblem(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, N, M)
 
         # Step 2. If the optimal value of the PP is nonnegative**, go to step 5. Otherwise, denote the optimal solution to the
         # PP by c and Ac and replace caligraphic C and A = Abar, k \in caligraphicC
-        if p >= 0:
+        if pstar >= 0:
+            #This choice includes the case when no aperture was selected
             break
         else:
             data.caligraphicC.append(bestAperture)
@@ -762,105 +806,20 @@ def colGen():
             data.rlist[bestAperture] = rm
             solveRMC()
             plotcounter = plotcounter + 1
-            printresults(plotcounter)
+            printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics')
 
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
             #notinC and denote the final set of fluence rates by yk
 
+    return(pstar)
 
-# The next function prints DVH values
-def printresults(iterationNumber):
-    numzvectors = 1
-    maskValueFull = [int(i) for i in data.fullMaskValue]
-    maskValueFull = np.array(maskValueFull)
-    print('Starting to Print Results')
-    for i in range(0, numzvectors):
-        zvalues = data.currentDose
-        maxDose = max([float(i) for i in zvalues])
-        dose_resln = 0.1
-        dose_ub = maxDose + 10
-        bin_center = np.arange(0,dose_ub,dose_resln)
-        # Generate holder matrix
-        dvh_matrix = np.zeros((data.numstructs, len(bin_center)))
-        lenintervalhalf = bin_center[1]/2
-        # iterate through each structure
-        for s in range(0,data.numstructs):
-            allNames[s] = allNames[s].replace("_VOILIST.mat", "")
-            #print('determining DVH for ' + pickstructs[s])
-            print('dvh for structure' + str(s))
-            doseHolder = sorted(zvalues[[i for i,v in enumerate(maskValueFull & 2**s) if v > 0]])
-            if 0 == len(doseHolder):
-                continue
-            histHolder = []
-            print('is this the problem:', s)
-            carryinfo = 0
-            histHolder, garbage = np.histogram(doseHolder, bin_center)
-            histHolder = np.append(histHolder, 0)
-            histHolder = np.cumsum(histHolder)
-            #for i in bin_center:
-            #    print(i)
-            #    candidatestoadd = (doseHolder < (i - lenintervalhalf))
-            #    carryinfo = sum(candidatestoadd) + carryinfo
-            #    histHolder.append(carryinfo)
-            #    doseHolder = np.delete(doseHolder, np.where(doseHolder < (i - lenintervalhalf)))
-
-            print('that took long, bin_center had positions:', len(bin_center))
-            dvhHolder = 1-(np.matrix(histHolder)/max(histHolder))
-            dvh_matrix[s,] = dvhHolder
-    myfig = pylab.plot(bin_center, dvh_matrix.T, linewidth = 2.0)
-    plt.grid(True)
-    plt.xlabel('Dose Gray')
-    plt.ylabel('Fractional Volume')
-    plt.title('6 beams iteration: ' + str(iterationNumber))
-    plt.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/DVH-at-Iteration' + str(iterationNumber) + 'greedyVMAT.png')
-    plt.close()
-    #plt.show()
-
-    ## special organs to plot
-    #dvhmatrixsafe = dvh_matrix
-    #dvh_matrix = dvhmatrixsafe
-    voitoplot = [18, 23, 17, 2, 8]
-    #dvhsub = dvh_matrix[voitoplot,]
-    #pylab.plot(bin_center, dvhsub.T, linewidth = 2.0)
-    # numstructs = 25
-    # dosefile = "/home/wilmer/Dropbox/IpOptSolver/currentDose.txt"
-    # zvalues = [ float(line.rstrip('\n'))  for line in open(dosefile)]
-    # maskvaluefile = "/home/wilmer/Dropbox/IpOptSolver/currentMaskValue.txt"
-    # maskValueF = [ int(line.rstrip('\n'))  for line in open(maskvaluefile)]
-    # maskValue = np.array(maskValueF)
-    #
-    # maxDose = max([i for i in zvalues])
-    # dose_resln = 0.1
-    # dose_ub = maxDose + 10
-    # bin_center = np.arange(0, dose_ub, dose_resln)
-    # dvh_matrix = np.zeros((numstructs, len(bin_center)))
-    # lenintervalhalf = bin_center[1]/2
-    # i=0
-    #
-    # for s in range(0, numstructs):
-    #     a = [i for i,v in enumerate(maskValue & 2**s) if v > 0]
-    #     doseHolder = [zvalues[i] for i in a]
-    #     if 0 == len(doseHolder):
-    #         continue
-    #     histHolder = []
-    #     for i in bin_center:
-    #         histHolder.append(sum(doseHolder < (i - lenintervalhalf)))
-    #     dvhHolder = 1-(np.matrix(histHolder) / max(histHolder))
-    #     dvh_matrix[s,] = dvhHolder
-    #
-    # #pylab.plot(bin_center, alt.T, linewidth = 2.0)
-    dvhsub2 = dvh_matrix[voitoplot,]
-    myfig2 = pylab.plot(bin_center, dvhsub2.T, linewidth = 1.0, linestyle = '--')
-    plt.grid(True)
-    plt.xlabel('Dose Gray')
-    plt.ylabel('Fractional Volume')
-    plt.title('6 beams iteration:' + str(iterationNumber))
-    plt.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/DVH-at-Iteration-Subplot' + str(iterationNumber) + 'greedyVMAT.png')
-    plt.close()
 
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')
 
-colGen()
+colps = [] #colection of pstar values
+for c in [1.0]:
+#for c = range(0, 10, 1):
+    colps.append(colGen(c/10))
 
 print('The whole program took: '  + str(time.time()-start) + ' seconds to finish')
 

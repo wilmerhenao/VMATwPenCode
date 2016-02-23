@@ -822,8 +822,11 @@ print('Preparation time took: ' + str(time.time()-start) + ' seconds')
 
 colps = [] #colection of pstar values
 #for c in [1.0]:
-for c in range(0, 20):
-    colps.append(colGen(c/20))
+for c in range(0, 10):
+    pstar = colGen(c)
+    colps.append(pstar)
+    with open("/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/whatIhave.txt", "a") as myf:
+        myf.write(str(pstar))
 
 print('The whole program took: '  + str(time.time()-start) + ' seconds to finish')
 

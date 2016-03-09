@@ -19,11 +19,9 @@ import time
 import math
 import pylab
 import matplotlib.pyplot as plt
-#import _thread
 
-
-rootFolder = '/media/wilmer/datadrive'
-#rootFolder = '/home/wilmer/Documents/Troy_BU'
+#rootFolder = '/media/wilmer/datadrive'
+rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -550,12 +548,16 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     oldflag = nodesinpreviouslevel
     # First handle the calculations for the first row
 
+    beamGrad = D*data.mygradient
+
+
     for l in range(math.ceil(max(min(validbeamlets) - 1, lcm[0] - vmaxm * angdistancem/speedlim, lcp[0] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[0] + vmaxm * angdistancem / speedlim, lcp[0] + vmaxp * angdistancep / speedlim))):
         for r in range(math.ceil(max(l + 1, rcm[0] - vmaxm * angdistancem/speedlim, rcp[0] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets)+1, rcm[0] + vmaxm * angdistancem / speedlim, rcp[0] + vmaxp * angdistancep / speedlim))):
 
             # First I have to make sure to add the beamlets that I am interested in
             if(l + 1 <= r -1): # prints r numbers starting from l + 1. So range(3,4) = 3
-                Dose = -sum( D[[i for i in range(l+1, r)],:] * data.mygradient)
+                # Dose = -sum( D[[i for i in range(l+1, r)],:] * data.mygradient)
+                Dose = -beamGrad[l+1:r].sum()
                 weight = C * ( C2 * (r - l) - C3 * b * (r - l)) - Dose
             else:
                 weight = 0.0
@@ -593,14 +595,17 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 lmlimit = leftmostleaf
                 rmlimit = (r - l) + leftmostleaf
                 if(lmlimit + 1 <= rmlimit - 1):
-                    Dose = - sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.mygradient)
+                    #Dose = - sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.mygradient)
+                    Dose = -beamGrad[lmlimit+1:rmlimit].sum()
+
                     C3simplifier = C3 * b * (r - l)
                 else:
                     Dose = 0.0
                     C3simplifier = 0
                 for mynode in (range(posBeginningOfRow - oldflag, posBeginningOfRow)):
                     # Create arc from (m-1, l, r) to (m, l, r). And assign weight
-                    lambdaletter = math.fabs(networkNodes[mynode][1] - l) + math.fabs(networkNodes[mynode][2] - r) - 2 * max(0, networkNodes[mynode][1] - r) - 2 * max(0, l - math.fabs(networkNodes[mynode][2]))
+                    #lambdaletter = math.fabs(networkNodes[mynode][1] - l) + math.fabs(networkNodes[mynode][2] - r) - 2 * max(0, networkNodes[mynode][1] - r) - 2 * max(0, l - math.fabs(networkNodes[mynode][2]))
+                    lambdaletter = 0
                     weight = C * (C2 * lambdaletter - C3simplifier) - Dose
                     #print("weight is", weight)
                     if(networkNodes[mynode][3] + weight < networkNodes[thisnode][3]):
@@ -714,6 +719,7 @@ def solveRMC():
     res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds = boundschoice, options={'ftol':1e-6, 'disp':5,'maxiter':1000})
 
     print('solved in ' + str(time.time() - start) + ' seconds')
+    exit()
 
 # The next function prints DVH values
 def printresults(iterationNumber, myfolder):
@@ -793,7 +799,12 @@ def colGen(C):
         data.calcGradientandObjValue()
         #p, lm, rm =  PPsubroutine(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, 4, [], N, M, 5)
         pstar, lm, rm, bestAperture = PricingProblem(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, N, M)
-
+        print(pstar)
+        with open("/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/whatIhave.txt", "a") as myf:
+            myf.write(str(C))
+            myf.write(str(plotcounter))
+            myf.write(str(pstar))
+            myf.close()
         # Step 2. If the optimal value of the PP is nonnegative**, go to step 5. Otherwise, denote the optimal solution to the
         # PP by c and Ac and replace caligraphic C and A = Abar, k \in caligraphicC
         if pstar >= 0:
@@ -811,7 +822,6 @@ def colGen(C):
             solveRMC()
             plotcounter = plotcounter + 1
             printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
-
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
             #notinC and denote the final set of fluence rates by yk
 
@@ -820,13 +830,10 @@ def colGen(C):
 
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')
 
-colps = [] #colection of pstar values
 #for c in [1.0]:
 for c in range(0, 10):
     pstar = colGen(c)
-    colps.append(pstar)
-    with open("/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/whatIhave.txt", "a") as myf:
-        myf.write(str(pstar))
+
 
 print('The whole program took: '  + str(time.time()-start) + ' seconds to finish')
 

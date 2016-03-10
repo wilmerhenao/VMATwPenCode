@@ -20,8 +20,8 @@ import math
 import pylab
 import matplotlib.pyplot as plt
 
-rootFolder = '/media/wilmer/datadrive'
-#rootFolder = '/home/wilmer/Documents/Troy_BU'
+#rootFolder = '/media/wilmer/datadrive'
+rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -548,40 +548,19 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     oldflag = nodesinpreviouslevel
     # First handle the calculations for the first row
 
-    beamGrad = D*data.mygradient
+    beamGrad = D * data.mygradient
 
-    # Create a network list without having to append anything.
-    networkNodesNumber = 1 # Starts in 1 because I need to introduce the original node of zero weight
-    nodesinpreviouslevel = 0
-    ####################################################################################################################
-    # Number of nodes in first row is the number of times we invoke the 2 level nested for loop
-    for l in range(math.ceil(max(min(validbeamlets) - 1, lcm[0] - vmaxm * angdistancem/speedlim, lcp[0] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[0] + vmaxm * angdistancem / speedlim, lcp[0] + vmaxp * angdistancep / speedlim))):
-        for r in range(math.ceil(max(l + 1, rcm[0] - vmaxm * angdistancem/speedlim, rcp[0] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets)+1, rcm[0] + vmaxm * angdistancem / speedlim, rcp[0] + vmaxp * angdistancep / speedlim))):
-            networkNodesNumber = networkNodesNumber + 1
-            nodesinpreviouslevel = nodesinpreviouslevel + 1
-    posBeginningOfRow = posBeginningOfRow + nodesinpreviouslevel
-
-    for m in range(2,M):
-        nodesinpreviouslevel = 0
-        for l in range(math.ceil(max(min(validbeamlets)-1, lcm[m] - vmaxm * angdistancem/speedlim, lcp[m] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[m] + vmaxm * angdistancem / speedlim, lcp[m] + vmaxp * angdistancep / speedlim))):
-            for r in range(math.ceil(max(l + 1, rcm[m] - vmaxm * angdistancem/speedlim, rcp[m] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets) + 1, rcm[m] + vmaxm * angdistancem / speedlim, rcp[m] + vmaxp * angdistancep / speedlim))):
-                networkNodesNumber = networkNodesNumber + 1
-                nodesinpreviouslevel = nodesinpreviouslevel + 1
-        posBeginningOfRow = nodesinpreviouslevel + posBeginningOfRow
-
-    for mynode in (range(posBeginningOfRow - nodesinpreviouslevel, posBeginningOfRow)):
-        networkNodesNumber = networkNodesNumber + 1
-    ####################################################################################################################
     nodesinpreviouslevel = 0
     posBeginningOfRow = 0
     thisnode = 0
-
-    lnetwork = np.zeros(networkNodesNumber, dtype = np.float)
-    rnetwork = np.zeros(networkNodesNumber, dtype = np.float)
-    mnetwork = np.ones(networkNodesNumber, dtype = np.float) #Only to save some time in the first loop
+    # beamlets per row
+    bpr = 50
+    networkNodesNumber = bpr * bpr + M * bpr * bpr + bpr * bpr # An overestimate of the network nodes in this network
+    lnetwork = np.zeros(networkNodesNumber, dtype = np.int)
+    rnetwork = np.zeros(networkNodesNumber, dtype = np.int)
+    mnetwork = np.ones(networkNodesNumber, dtype = np.int) #Only to save some time in the first loop
     wnetwork = np.zeros(networkNodesNumber, dtype = np.float)
-    dadnetwork = np.zeros(networkNodesNumber, dtype = np.float)
-
+    dadnetwork = np.zeros(networkNodesNumber, dtype = np.int)
     # The real work starts here
     for l in range(math.ceil(max(min(validbeamlets) - 1, lcm[0] - vmaxm * angdistancem/speedlim, lcp[0] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[0] + vmaxm * angdistancem / speedlim, lcp[0] + vmaxp * angdistancep / speedlim))):
         for r in range(math.ceil(max(l + 1, rcm[0] - vmaxm * angdistancem/speedlim, rcp[0] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets)+1, rcm[0] + vmaxm * angdistancem / speedlim, rcp[0] + vmaxp * angdistancep / speedlim))):
@@ -627,7 +606,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
             for r in range(math.ceil(max(l + 1, rcm[m] - vmaxm * angdistancem/speedlim, rcp[m] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets) + 1, rcm[m] + vmaxm * angdistancem / speedlim, rcp[m] + vmaxp * angdistancep / speedlim))):
                 nodesinpreviouslevel = nodesinpreviouslevel + 1
                 thisnode = thisnode + 1
-                print("this node:", thisnode)
                 # Create node (m, l, r) and update the level counter
                 # networkNodes.append([m, l, r, float("inf"), float("inf")])
                 lnetwork[thisnode] = l
@@ -644,42 +622,38 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 else:
                     Dose = 0.0
                     C3simplifier = 0
-                for mynode in (range(posBeginningOfRow - oldflag, posBeginningOfRow)):
+                lambdaletter = np.absolute(lnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow] - l) + np.absolute(rnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow] - r) - 2 * np.maximum(0, lnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow] - r) - 2 * np.maximum(0, l - np.absolute(rnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow]))
+                weight = C * (C2 * lambdaletter - C3simplifier) - Dose
+                # Add the weights that were just calculated
+                newweights = wnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow] + weight
+                # Find the minimum and its position in the vector.
+                minloc = np.argmin(newweights)
+                wnetwork[thisnode] = newweights[minloc]
+                dadnetwork[thisnode] = minloc + posBeginningOfRow
+                #for mynode in (range(posBeginningOfRow - oldflag, posBeginningOfRow)):
                     # Create arc from (m-1, l, r) to (m, l, r). And assign weight
-                    if thisnode > 1088:
-                        print("mynode:", mynode)
-                    lambdaletter = math.fabs(lnetwork[mynode] - l) + math.fabs(rnetwork[mynode] - r) - 2 * max(0, lnetwork[mynode] - r) - 2 * max(0, l - math.fabs(rnetwork[mynode]))
-                    #lambdaletter = 0
-                    weight = C * (C2 * lambdaletter - C3simplifier) - Dose
-                    #print("weight is", weight)
-                    if(wnetwork[mynode] + weight < wnetwork[thisnode]):
-                        wnetwork[thisnode] = wnetwork[mynode] + weight
+                #    lambdaletter = math.fabs(lnetwork[mynode] - l) + math.fabs(rnetwork[mynode] - r) - 2 * max(0, lnetwork[mynode] - r) - 2 * max(0, l - math.fabs(rnetwork[mynode]))
+                #    weight = C * (C2 * lambdaletter - C3simplifier) - Dose
+                #    if(wnetwork[mynode] + weight < wnetwork[thisnode]):
+                #        wnetwork[thisnode] = wnetwork[mynode] + weight
                         # And next we look for the minimum distance.
-                        dadnetwork[thisnode] = mynode
+                #        dadnetwork[thisnode] = mynode
         posBeginningOfRow = nodesinpreviouslevel + posBeginningOfRow # This is the total number of network nodes
         # Keep the location of the leftmost leaf
         leftmostleaf = len(ys) + leftmostleaf
-
-    #posBeginningOfRow = posBeginningOfRow + 1 # Notice that this position right now falls outside the array! Here only for illustration.
-    #networkNodes.append([M, float("inf"), float("inf"), float("inf"), float("inf")])
-    #lnetwork[nodesinpreviouslevel + posBeginningOfRow] = l
-    #rnetwork[nodesinpreviouslevel + posBeginningOfRow] = r
-    #mnetwork[nodesinpreviouslevel + posBeginningOfRow] = m
-    #wnetwork[nodesinpreviouslevel + posBeginningOfRow] = np.inf
-    print("thisnode:", thisnode)
-    print("posbeginningofrow:", posBeginningOfRow)
-    thisnode = posBeginningOfRow
+        #print("posbegrow:", posBeginningOfRow)
     for mynode in (range(posBeginningOfRow - nodesinpreviouslevel, posBeginningOfRow)):
         weight = C * ( C2 * (rnetwork[mynode] - lnetwork[mynode] ))
         if(wnetwork[mynode] + weight <= wnetwork[thisnode]):
             wnetwork[thisnode] = wnetwork[mynode] + weight
             dadnetwork[thisnode] = mynode
             p = wnetwork[thisnode]
-    
+    print("return set of left and right limits")
     # return set of left and right limits
-    thenode = networkNodesNumber # WILMER take a look at this
+    thenode = thisnode # WILMER take a look at this
     l = []
     r = []
+    print("entering while counter loop")
     while(1):
         # Find the predecessor data
         l.append(lnetwork[thenode])
@@ -687,8 +661,10 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         thenode = dadnetwork[thenode]
         if(0 == thenode): # If at the origin then break.
             break
+    print("exiting while counter loop")
     l.reverse()
     r.reverse()
+    print("getting out of the function")
     return(p, l, r)
 
 def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, M):
@@ -881,7 +857,7 @@ def colGen(C):
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')
 
 #for c in [1.0]:
-for c in range(0, 10):
+for c in range(1, 10):
     pstar = colGen(c)
 
 

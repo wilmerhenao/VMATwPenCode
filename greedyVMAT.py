@@ -629,7 +629,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 # Find the minimum and its position in the vector.
                 minloc = np.argmin(newweights)
                 wnetwork[thisnode] = newweights[minloc]
-                dadnetwork[thisnode] = minloc + posBeginningOfRow
+                dadnetwork[thisnode] = minloc + posBeginningOfRow - oldflag
                 #for mynode in (range(posBeginningOfRow - oldflag, posBeginningOfRow)):
                     # Create arc from (m-1, l, r) to (m, l, r). And assign weight
                 #    lambdaletter = math.fabs(lnetwork[mynode] - l) + math.fabs(rnetwork[mynode] - r) - 2 * max(0, lnetwork[mynode] - r) - 2 * max(0, l - math.fabs(rnetwork[mynode]))
@@ -641,7 +641,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         posBeginningOfRow = nodesinpreviouslevel + posBeginningOfRow # This is the total number of network nodes
         # Keep the location of the leftmost leaf
         leftmostleaf = len(ys) + leftmostleaf
-        #print("posbegrow:", posBeginningOfRow)
+    thisnode = thisnode + 1
     for mynode in (range(posBeginningOfRow - nodesinpreviouslevel, posBeginningOfRow)):
         weight = C * ( C2 * (rnetwork[mynode] - lnetwork[mynode] ))
         if(wnetwork[mynode] + weight <= wnetwork[thisnode]):
@@ -659,7 +659,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         l.append(lnetwork[thenode])
         r.append(rnetwork[thenode])
         thenode = dadnetwork[thenode]
-        if(0 == thenode): # If at the origin then break.
+        if(0 == thenode): # If at the origin then break
             break
     print("exiting while counter loop")
     l.reverse()
@@ -745,7 +745,7 @@ def solveRMC():
     res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds = boundschoice, options={'ftol':1e-6, 'disp':5,'maxiter':1000})
 
     print('solved in ' + str(time.time() - start) + ' seconds')
-    exit()
+    #exit()
 
 # The next function prints DVH values
 def printresults(iterationNumber, myfolder):
@@ -857,8 +857,11 @@ def colGen(C):
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')
 
 #for c in [1.0]:
-for c in range(1, 10):
-    pstar = colGen(c)
+#for c in range(1, 10):
+before = time.time()
+pstar = colGen(1)
+after = time.time()
+print("The whole process took:" , after - before)
 
 
 print('The whole program took: '  + str(time.time()-start) + ' seconds to finish')

@@ -508,7 +508,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     # Start with arcs that go from the source to level m = 1
     # Create source node
     networkNodes.append([-1, 0, 0, 0, 0]) # m, l, r, distance, index of predecesor
-    posBeginningOfRow = 1
+    posBeginningOfRow = 0
     D = Dlist[index]
 
     # vmaxm and vmaxp describe the speeds that are possible for the leaves from the predecessor and to the successor
@@ -551,8 +551,9 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     beamGrad = D*data.mygradient
 
     # Create a network list without having to append anything.
-    networkNodesNumber = 0
-    posBeginningOfRow = 1
+    networkNodesNumber = 1 # Starts in 1 because I need to introduce the original node of zero weight
+    nodesinpreviouslevel = 0
+    ####################################################################################################################
     # Number of nodes in first row is the number of times we invoke the 2 level nested for loop
     for l in range(math.ceil(max(min(validbeamlets) - 1, lcm[0] - vmaxm * angdistancem/speedlim, lcp[0] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[0] + vmaxm * angdistancem / speedlim, lcp[0] + vmaxp * angdistancep / speedlim))):
         for r in range(math.ceil(max(l + 1, rcm[0] - vmaxm * angdistancem/speedlim, rcp[0] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets)+1, rcm[0] + vmaxm * angdistancem / speedlim, rcp[0] + vmaxp * angdistancep / speedlim))):
@@ -570,18 +571,22 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
 
     for mynode in (range(posBeginningOfRow - nodesinpreviouslevel, posBeginningOfRow)):
         networkNodesNumber = networkNodesNumber + 1
-
+    ####################################################################################################################
     nodesinpreviouslevel = 0
-    lnetwork = np.zeros(networkNodesNumber, dtype=np.float)
-    rnetwork = np.zeros(networkNodesNumber, dtype=np.float)
-    mnetwork = np.ones(networkNodesNumber, dtype=np.float) #Only to save some time in the first loop
-    wnetwork = np.zeros(networkNodesNumber, dtype=np.float)
-    dadnetwork = np.zeros(networkNodesNumber, dtype=np.float)
+    posBeginningOfRow = 0
+    thisnode = 0
+
+    lnetwork = np.zeros(networkNodesNumber, dtype = np.float)
+    rnetwork = np.zeros(networkNodesNumber, dtype = np.float)
+    mnetwork = np.ones(networkNodesNumber, dtype = np.float) #Only to save some time in the first loop
+    wnetwork = np.zeros(networkNodesNumber, dtype = np.float)
+    dadnetwork = np.zeros(networkNodesNumber, dtype = np.float)
 
     # The real work starts here
     for l in range(math.ceil(max(min(validbeamlets) - 1, lcm[0] - vmaxm * angdistancem/speedlim, lcp[0] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[0] + vmaxm * angdistancem / speedlim, lcp[0] + vmaxp * angdistancep / speedlim))):
         for r in range(math.ceil(max(l + 1, rcm[0] - vmaxm * angdistancem/speedlim, rcp[0] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets)+1, rcm[0] + vmaxm * angdistancem / speedlim, rcp[0] + vmaxp * angdistancep / speedlim))):
-
+            thisnode = thisnode + 1
+            nodesinpreviouslevel = nodesinpreviouslevel + 1
             # First I have to make sure to add the beamlets that I am interested in
             if(l + 1 <= r -1): # prints r numbers starting from l + 1. So range(3,4) = 3
                 # Dose = -sum( D[[i for i in range(l+1, r)],:] * data.mygradient)
@@ -589,13 +594,12 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 weight = C * ( C2 * (r - l) - C3 * b * (r - l)) - Dose
             else:
                 weight = 0.0
-            nodesinpreviouslevel = nodesinpreviouslevel + 1
             # Create node (1,l,r) in array of existing nodes and update the counter
             # Replace the following expression
             # networkNodes.append([1, l, r, weight, 0])
-            lnetwork[nodesinpreviouslevel] = l
-            rnetwork[nodesinpreviouslevel] = r
-            wnetwork[nodesinpreviouslevel] = weight
+            lnetwork[thisnode] = l
+            rnetwork[thisnode] = r
+            wnetwork[thisnode] = weight
             # dadnetwork and mnetwork don't need to be changed here for obvious reasons
 
     posBeginningOfRow = posBeginningOfRow + nodesinpreviouslevel
@@ -622,14 +626,15 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         for l in range(math.ceil(max(min(validbeamlets)-1, lcm[m] - vmaxm * angdistancem/speedlim, lcp[m] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[m] + vmaxm * angdistancem / speedlim, lcp[m] + vmaxp * angdistancep / speedlim))):
             for r in range(math.ceil(max(l + 1, rcm[m] - vmaxm * angdistancem/speedlim, rcp[m] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets) + 1, rcm[m] + vmaxm * angdistancem / speedlim, rcp[m] + vmaxp * angdistancep / speedlim))):
                 nodesinpreviouslevel = nodesinpreviouslevel + 1
+                thisnode = thisnode + 1
+                print("this node:", thisnode)
                 # Create node (m, l, r) and update the level counter
                 # networkNodes.append([m, l, r, float("inf"), float("inf")])
-                lnetwork[nodesinpreviouslevel + posBeginningOfRow] = l
-                rnetwork[nodesinpreviouslevel + posBeginningOfRow] = r
-                mnetwork[nodesinpreviouslevel + posBeginningOfRow] = m
-                wnetwork[nodesinpreviouslevel + posBeginningOfRow] = np.inf
+                lnetwork[thisnode] = l
+                rnetwork[thisnode] = r
+                mnetwork[thisnode] = m
+                wnetwork[thisnode] = np.inf
 
-                thisnode = nodesinpreviouslevel + posBeginningOfRow
                 lmlimit = leftmostleaf
                 rmlimit = (r - l) + leftmostleaf
                 if(lmlimit + 1 <= rmlimit - 1):
@@ -641,6 +646,8 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                     C3simplifier = 0
                 for mynode in (range(posBeginningOfRow - oldflag, posBeginningOfRow)):
                     # Create arc from (m-1, l, r) to (m, l, r). And assign weight
+                    if thisnode > 1088:
+                        print("mynode:", mynode)
                     lambdaletter = math.fabs(lnetwork[mynode] - l) + math.fabs(rnetwork[mynode] - r) - 2 * max(0, lnetwork[mynode] - r) - 2 * max(0, l - math.fabs(rnetwork[mynode]))
                     #lambdaletter = 0
                     weight = C * (C2 * lambdaletter - C3simplifier) - Dose
@@ -653,18 +660,17 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         # Keep the location of the leftmost leaf
         leftmostleaf = len(ys) + leftmostleaf
 
-
-    posBeginningOfRow = posBeginningOfRow + 1 # Notice that this position right now falls outside the array! Here only for illustration.
-
+    #posBeginningOfRow = posBeginningOfRow + 1 # Notice that this position right now falls outside the array! Here only for illustration.
     #networkNodes.append([M, float("inf"), float("inf"), float("inf"), float("inf")])
     #lnetwork[nodesinpreviouslevel + posBeginningOfRow] = l
     #rnetwork[nodesinpreviouslevel + posBeginningOfRow] = r
     #mnetwork[nodesinpreviouslevel + posBeginningOfRow] = m
     #wnetwork[nodesinpreviouslevel + posBeginningOfRow] = np.inf
-
+    print("thisnode:", thisnode)
+    print("posbeginningofrow:", posBeginningOfRow)
     thisnode = posBeginningOfRow
     for mynode in (range(posBeginningOfRow - nodesinpreviouslevel, posBeginningOfRow)):
-        weight = C * ( C2 * (rnetwork[mynode] - lnetwork[mynode] ) )
+        weight = C * ( C2 * (rnetwork[mynode] - lnetwork[mynode] ))
         if(wnetwork[mynode] + weight <= wnetwork[thisnode]):
             wnetwork[thisnode] = wnetwork[mynode] + weight
             dadnetwork[thisnode] = mynode

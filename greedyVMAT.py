@@ -98,7 +98,7 @@ class vmat_class:
     llist = []
     rlist = []
 
-    mygradient = []
+    voxelgradient = []
     scipygradient = []
     GradientIntermediate = 0.0
 
@@ -107,11 +107,6 @@ class vmat_class:
         # self.currentDose = self.Dmat.transpose() * newIntensities
         self.currentDose = np.zeros(self.numvoxels, dtype = float)
         # gradhelper will have a dimension that is numvoxels x numbeams
-        # gradhelper = Dlist[0].sum(axis=0).transpose()
-        # for i in range(1, self.numbeams):
-            # Sum all the rows.
-        #    gradhelper = np.hstack((gradhelper, Dlist[i].sum(axis=0).transpose()))
-        # gradhelpershade = gradhelper * 0.0
         gradhelper = np.matrix(np.zeros((self.numvoxels, self.numbeams)))
         if len(self.caligraphicC) != 0:
             for i in self.caligraphicC:
@@ -160,15 +155,16 @@ class vmat_class:
         uDoseObjCl = (uDoseObj > 0) * uDoseObj
         uDoseObj = (uDoseObj > 0) * uDoseObj
         uDoseObj = uDoseObj * uDoseObj * quadHelperUnder
+
         self.objectiveValue = sum(oDoseObj + uDoseObj)
 
         oDoseObjGl = 2 * oDoseObjCl * quadHelperOver
         uDoseObjGl = 2 * uDoseObjCl * quadHelperUnder
 
         # This is the gradient of dF / dZ. Dimension is numvoxels
-        self.mygradient = 2 * (oDoseObjGl - uDoseObjGl)
+        self.voxelgradient = 2 * (oDoseObjGl - uDoseObjGl)
         # This is the gradient of dF / dk. Dimension is num Apertures
-        self.scipygradient = (np.asmatrix(self.mygradient) * self.GradientIntermediate).transpose()
+        self.aperturegradient = (np.asmatrix(self.voxelgradient) * self.GradientIntermediate).transpose()
 
     # default constructor
     def __init__(self):
@@ -477,7 +473,7 @@ def calcObjGrad(x, user_data = None):
     data.currentIntensities = x
     data.calcDose()
     data.calcGradientandObjValue()
-    return(data.objectiveValue, data.scipygradient)
+    return(data.objectiveValue, data.aperturegradient)
 
 def eval_g(x, user_data= None):
            return array([], float_)
@@ -548,7 +544,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     oldflag = nodesinpreviouslevel
     # First handle the calculations for the first row
 
-    beamGrad = D * data.mygradient
+    beamGrad = D * data.voxelgradient
 
     nodesinpreviouslevel = 0
     posBeginningOfRow = 0
@@ -568,7 +564,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
             nodesinpreviouslevel = nodesinpreviouslevel + 1
             # First I have to make sure to add the beamlets that I am interested in
             if(l + 1 <= r -1): # prints r numbers starting from l + 1. So range(3,4) = 3
-                # Dose = -sum( D[[i for i in range(l+1, r)],:] * data.mygradient)
+                # Dose = -sum( D[[i for i in range(l+1, r)],:] * data.voxelgradient)
                 Dose = -beamGrad[l+1:r].sum()
                 weight = C * ( C2 * (r - l) - C3 * b * (r - l)) - Dose
             else:
@@ -616,7 +612,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 lmlimit = leftmostleaf
                 rmlimit = (r - l) + leftmostleaf
                 if(lmlimit + 1 <= rmlimit - 1):
-                    #Dose = - sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.mygradient)
+                    #Dose = - sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.voxelgradient)
                     Dose = -beamGrad[lmlimit+1:rmlimit].sum()
                     C3simplifier = C3 * b * (r - l)
                 else:

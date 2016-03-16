@@ -21,8 +21,8 @@ import pylab
 import matplotlib.pyplot as plt
 from itertools import chain
 
-rootFolder = '/media/wilmer/datadrive'
-#rootFolder = '/home/wilmer/Documents/Troy_BU'
+#rootFolder = '/media/wilmer/datadrive'
+rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -133,12 +133,12 @@ class vmat_class:
                     # Keep the location of the le)ftmost leaf
                     leftlimits = leftlimits + len(validbeamlets)
                     if (indleft < indright + 1):
-                        openaperture = chain(openaperture, range(indleft, indright + 1))
-                        lenopenaperture += (indright - indleft + 1)
+                        #openaperture = chain(openaperture, range(indleft, indright + 1))
+                        for thisbeamlet in range(indleft, indright + 1):
+                            openaperture.append(thisbeamlet)
 
-                #for thisthing in openaperture:
-                #    print(thisthing)
-                self.currentDose += ThisDlist[[ij for ij in openaperture],:].transpose() * np.repeat(self.currentIntensities[i], lenopenaperture, axis = 0)
+                openaperturenp = np.array(openaperture, dtype=int)
+                self.currentDose += ThisDlist[openaperturenp,:].transpose() * np.repeat(self.currentIntensities[i], len(openaperture), axis = 0)
                 # WILMER Change to:
                 diagmaker = np.zeros(ThisDlistshader.shape[0], dtype=float)
                 diagmaker[[ij for ij in openaperture]] = 1.0
@@ -148,7 +148,7 @@ class vmat_class:
                 dZdK[:,i] = ThisDlistshader.transpose().sum(axis=1)
 
         self.GradientIntermediate = dZdK
-        print("sum of selfcurrentdose", sum(self.currentDose))
+        #print("sum of selfcurrentdose", sum(self.currentDose))
 
     def calcGradientandObjValue(self):
         oDoseObj = self.currentDose - quadHelperThresh

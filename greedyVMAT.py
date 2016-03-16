@@ -19,9 +19,10 @@ import time
 import math
 import pylab
 import matplotlib.pyplot as plt
+from itertools import chain
 
-#rootFolder = '/media/wilmer/datadrive'
-rootFolder = '/home/wilmer/Documents/Troy_BU'
+rootFolder = '/media/wilmer/datadrive'
+#rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -106,16 +107,17 @@ class vmat_class:
     def calcDose(self):
         # self.currentDose = self.Dmat.transpose() * newIntensities
         self.currentDose = np.zeros(self.numvoxels, dtype = float)
-        # gradhelper will have a dimension that is numvoxels x numbeams
-        gradhelper = np.matrix(np.zeros((self.numvoxels, self.numbeams)))
+        # dZdK will have a dimension that is numvoxels x numbeams
+        dZdK = np.matrix(np.zeros((self.numvoxels, self.numbeams)))
         if len(self.caligraphicC) != 0:
             for i in self.caligraphicC:
                 ThisDlist = Dlist[i]
                 #WILMER Change to:
                 ThisDlistshader = ThisDlist * 0.0
-                #ThisDlistshader = ThisDlist * 1.0
                 leftlimits = 0
-                for m in range(0, len(data.llist[0])):
+                openaperture = []
+                lenopenaperture = 0
+                for m in range(0, len(data.llist[i])):
                     # Find geographical values of llist and rlist.
                     # Find geographical location of the first row.
                     geolocX = data.xinter[m]
@@ -131,19 +133,22 @@ class vmat_class:
                     # Keep the location of the le)ftmost leaf
                     leftlimits = leftlimits + len(validbeamlets)
                     if (indleft < indright + 1):
-                        self.currentDose += ThisDlist[[ij for ij in range(indleft, indright + 1)],:].transpose()  * np.repeat(self.currentIntensities[i], (indright - indleft + 1), axis = 0)
-                        # WILMER Change to:
-                        diagmaker = np.zeros(ThisDlistshader.shape[0], dtype=float)
-                        diagmaker[[ij for ij in range(indleft, indright + 1)]] = 1.0
-                        #templist = np.diag(diagmaker) * ThisDlist
-                        templist = sparse.diags(diagmaker, 0) * ThisDlist
-                        ThisDlistshader = ThisDlistshader + templist
-                        #ThisDlistshader[[ij for ij in range(indleft, indright + 1)],:] = 1.0
-                #GIntermediate = np.multiply(ThisDlist, ThisDlistshader).transpose()
-                #gradhelper[i,:] = GIntermediate.sum(axis=1)
-                gradhelper[:,i] = ThisDlistshader.transpose().sum(axis=1)
+                        openaperture = chain(openaperture, range(indleft, indright + 1))
+                        lenopenaperture += (indright - indleft + 1)
 
-        self.GradientIntermediate = gradhelper
+                #for thisthing in openaperture:
+                #    print(thisthing)
+                self.currentDose += ThisDlist[[ij for ij in openaperture],:].transpose() * np.repeat(self.currentIntensities[i], lenopenaperture, axis = 0)
+                # WILMER Change to:
+                diagmaker = np.zeros(ThisDlistshader.shape[0], dtype=float)
+                diagmaker[[ij for ij in openaperture]] = 1.0
+                templist = sparse.diags(diagmaker, 0) * ThisDlist
+                ThisDlistshader = ThisDlistshader + templist
+
+                dZdK[:,i] = ThisDlistshader.transpose().sum(axis=1)
+
+        self.GradientIntermediate = dZdK
+        print("sum of selfcurrentdose", sum(self.currentDose))
 
     def calcGradientandObjValue(self):
         oDoseObj = self.currentDose - quadHelperThresh
@@ -406,7 +411,7 @@ print('Finished reading D matrices')
 ### Here I begin the matrix cut
 
 for i in range(0, data.numbeams):
-    # ininter will contain the elements that belong in the intersection of all beamlets
+    # ininter will contain the beamlet directions that belong in the intersection of all apertures
     ininter = []
     for j in range(0, len(data.xdirection[i])):
         if (data.xdirection[i][j] in data.xinter and data.ydirection[i][j] in data.yinter):

@@ -101,29 +101,24 @@ class vmat_class:
 
     voxelgradient = []
     scipygradient = []
-    GradientIntermediate = 0.0
     openApertureMaps = []
+    dZdK = 0.0
 
     # data class function
     def calcDose(self):
-        # self.currentDose = self.Dmat.transpose() * newIntensities
         self.currentDose = np.zeros(self.numvoxels, dtype = float)
         # dZdK will have a dimension that is numvoxels x numbeams
-        dZdK = np.matrix(np.zeros((self.numvoxels, self.numbeams)))
+        self.dZdK = np.matrix(np.zeros((self.numvoxels, self.numbeams)))
         if len(self.caligraphicC) != 0:
             for i in self.caligraphicC:
-                ThisDlist = Dlist[i]
                 #WILMER Change to:
-                DRestricted = ThisDlist * 0.0
+                DRestricted = Dlist[i] * 0.0
                 #openaperturenp = updateOpenAperture(i)
-                self.currentDose += ThisDlist[self.openApertureMaps[i],:].transpose() * np.repeat(self.currentIntensities[i], len(self.openApertureMaps[i]), axis = 0)
+                self.currentDose += Dlist[i][self.openApertureMaps[i],:].transpose() * np.repeat(self.currentIntensities[i], len(self.openApertureMaps[i]), axis = 0)
                 diagmaker = np.zeros(DRestricted.shape[0], dtype = float)
                 diagmaker[[ij for ij in self.openApertureMaps[i]]] = 1.0
-                DRestricted = sparse.diags(diagmaker, 0) * ThisDlist
-                dZdK[:,i] = DRestricted.transpose().sum(axis=1)
-
-        self.GradientIntermediate = dZdK
-        #print("sum of selfcurrentdose", sum(self.currentDose))
+                DRestricted = sparse.diags(diagmaker, 0) * Dlist[i]
+                self.dZdK[:,i] = DRestricted.transpose().sum(axis=1)
 
     def calcGradientandObjValue(self):
         oDoseObj = self.currentDose - quadHelperThresh
@@ -144,7 +139,7 @@ class vmat_class:
         # This is the gradient of dF / dZ. Dimension is numvoxels
         self.voxelgradient = 2 * (oDoseObjGl - uDoseObjGl)
         # This is the gradient of dF / dk. Dimension is num Apertures
-        self.aperturegradient = (np.asmatrix(self.voxelgradient) * self.GradientIntermediate).transpose()
+        self.aperturegradient = (np.asmatrix(self.voxelgradient) * self.dZdK).transpose()
 
     # default constructor
     def __init__(self):
@@ -564,9 +559,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     # Then handle the calculations for the m rows. Nodes that are neither source nor sink.
     for m in range(2,M):
         # Show time taken per row
-        print("Now on row", m)
         myend   =  time.time()
-        print(myend - mystart)
         mystart = myend
         # Find geographical location of this row.
         geolocX = data.xinter[m-1]
@@ -625,12 +618,9 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
             wnetwork[thisnode] = wnetwork[mynode] + weight
             dadnetwork[thisnode] = mynode
             p = wnetwork[thisnode]
-    print("return set of left and right limits")
-    # return set of left and right limits
     thenode = thisnode # WILMER take a look at this
     l = []
     r = []
-    print("entering while counter loop")
     while(1):
         # Find the predecessor data
         l.append(lnetwork[thenode])
@@ -638,10 +628,8 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         thenode = dadnetwork[thenode]
         if(0 == thenode): # If at the origin then break
             break
-    print("exiting while counter loop")
     l.reverse()
     r.reverse()
-    print("getting out of the function")
     return(p, l, r)
 
 def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, M):
@@ -656,7 +644,7 @@ def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, 
     # This is just for debugging
     #for index in data.notinC:
     # Wilmer. Fix this, this is only going to index 0 for debugging purposes
-
+    print("Choosing one aperture amongst the ones that are available")
     for index in data.notinC:
     #for index in [0]:
         print("analysing index" , index)
@@ -826,7 +814,7 @@ def colGen(C):
             data.openApertureMaps[bestAperture] = updateOpenAperture(bestAperture)
             solveRMC()
             plotcounter = plotcounter + 1
-            printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
+            #printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
             #notinC and denote the final set of fluence rates by yk
 
@@ -871,9 +859,10 @@ print("The whole process took:" , after - before)
 
 print('The whole program took: '  + str(time.time()-start) + ' seconds to finish')
 
-myplot = plt.plot(colps)
-plt.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/variationofC.png')
-plt.show()
+print("You have graciously finished running this program")
+#myplot = plt.plot(colps)
+#plt.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/variationofC.png')
+#plt.show()
 
 # PYTHON scipy.optimize solution
 

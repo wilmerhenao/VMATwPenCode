@@ -102,6 +102,7 @@ class vmat_class:
     voxelgradient = []
     scipygradient = []
     GradientIntermediate = 0.0
+    openApertureMaps = []
 
     # data class function
     def calcDose(self):
@@ -113,15 +114,13 @@ class vmat_class:
             for i in self.caligraphicC:
                 ThisDlist = Dlist[i]
                 #WILMER Change to:
-                ThisDlistshader = ThisDlist * 0.0
-                openaperturenp = updateOpenAperture(i)
-                self.currentDose += ThisDlist[openaperturenp,:].transpose() * np.repeat(self.currentIntensities[i], len(openaperturenp), axis = 0)
-                # WILMER Change to:
-                diagmaker = np.zeros(ThisDlistshader.shape[0], dtype = float)
-                diagmaker[[ij for ij in openaperturenp]] = 1.0
-                ThisDlistshader = sparse.diags(diagmaker, 0) * ThisDlist
-
-                dZdK[:,i] = ThisDlistshader.transpose().sum(axis=1)
+                DRestricted = ThisDlist * 0.0
+                #openaperturenp = updateOpenAperture(i)
+                self.currentDose += ThisDlist[self.openApertureMaps[i],:].transpose() * np.repeat(self.currentIntensities[i], len(self.openApertureMaps[i]), axis = 0)
+                diagmaker = np.zeros(DRestricted.shape[0], dtype = float)
+                diagmaker[[ij for ij in self.openApertureMaps[i]]] = 1.0
+                DRestricted = sparse.diags(diagmaker, 0) * ThisDlist
+                dZdK[:,i] = DRestricted.transpose().sum(axis=1)
 
         self.GradientIntermediate = dZdK
         #print("sum of selfcurrentdose", sum(self.currentDose))
@@ -348,9 +347,10 @@ for i in range(0, data.numbeams):
     else:
         data.xinter = np.intersect1d(data.xinter, data.xdirection[i])
         data.yinter = np.intersect1d(data.yinter, data.ydirection[i])
+    data.openApertureMaps.append([]) #Just start an empty map of apertures
 ## After reading the beaminfo information. Read CUT the data.
 
-N = len(data.yinter) #N will be related to the Y axis.
+N = len(data.yinter) #N will be related to the Y axis.updateOp
 M = len(data.xinter) #M will be related to the X axis.
 
 ###################################################
@@ -819,9 +819,11 @@ def colGen(C):
             print("best Aperture is:", bestAperture)
             data.notinC.remove(bestAperture)
             data.notinC.sort()
-            # Solve the instance of the RMP associated with caligraphicC and Ak = A_k^bar, k \in caligraphicC
+            # Solve the instance of the RMP associated with caligraphicC and Ak = A_k^bar, k \in
             data.llist[bestAperture] = lm
             data.rlist[bestAperture] = rm
+            # Precalculate the aperture map to save times.
+            data.openApertureMaps[bestAperture] = updateOpenAperture(bestAperture)
             solveRMC()
             plotcounter = plotcounter + 1
             printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')

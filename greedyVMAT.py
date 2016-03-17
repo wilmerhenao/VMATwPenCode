@@ -20,9 +20,10 @@ import math
 import pylab
 import matplotlib.pyplot as plt
 from itertools import chain
+from numba import jit
 
-#rootFolder = '/media/wilmer/datadrive'
-rootFolder = '/home/wilmer/Documents/Troy_BU'
+rootFolder = '/media/wilmer/datadrive'
+#rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -647,7 +648,7 @@ def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, 
     print("Choosing one aperture amongst the ones that are available")
     for index in data.notinC:
     #for index in [0]:
-        print("analysing index" , index)
+        print("analysing available aperture" , index)
         # Find the succesor and predecessor of this particular element
         try:
             succs = [i for i in range(0, data.caligraphicC) if i > index]
@@ -709,7 +710,7 @@ def solveRMC():
             boundschoice.append((0, None))
     res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds = boundschoice, options={'ftol':1e-6, 'disp':5,'maxiter':1000})
 
-    print('solved in ' + str(time.time() - start) + ' seconds')
+    print('Restricted Master Problem solved in ' + str(time.time() - start) + ' seconds')
     #exit()
 
 # The next function prints DVH values
@@ -804,7 +805,6 @@ def colGen(C):
         else:
             data.caligraphicC.append(bestAperture)
             data.caligraphicC.sort()
-            print("best Aperture is:", bestAperture)
             data.notinC.remove(bestAperture)
             data.notinC.sort()
             # Solve the instance of the RMP associated with caligraphicC and Ak = A_k^bar, k \in

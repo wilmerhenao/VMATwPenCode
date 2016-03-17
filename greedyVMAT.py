@@ -138,12 +138,11 @@ class vmat_class:
                             openaperture.append(thisbeamlet)
 
                 openaperturenp = np.array(openaperture, dtype=int)
-                self.currentDose += ThisDlist[openaperturenp,:].transpose() * np.repeat(self.currentIntensities[i], len(openaperture), axis = 0)
+                self.currentDose += ThisDlist[openaperturenp,:].transpose() * np.repeat(self.currentIntensities[i], len(openaperturenp), axis = 0)
                 # WILMER Change to:
-                diagmaker = np.zeros(ThisDlistshader.shape[0], dtype=float)
+                diagmaker = np.zeros(ThisDlistshader.shape[0], dtype = float)
                 diagmaker[[ij for ij in openaperture]] = 1.0
-                templist = sparse.diags(diagmaker, 0) * ThisDlist
-                ThisDlistshader = ThisDlistshader + templist
+                ThisDlistshader = sparse.diags(diagmaker, 0) * ThisDlist
 
                 dZdK[:,i] = ThisDlistshader.transpose().sum(axis=1)
 

@@ -114,34 +114,11 @@ class vmat_class:
                 ThisDlist = Dlist[i]
                 #WILMER Change to:
                 ThisDlistshader = ThisDlist * 0.0
-                leftlimits = 0
-                openaperture = []
-                lenopenaperture = 0
-                for m in range(0, len(data.llist[i])):
-                    # Find geographical values of llist and rlist.
-                    # Find geographical location of the first row.
-                    geolocX = data.xinter[m]
-                    # Find all possible locations of beamlets in this row according to geographical location
-                    indys = np.where(geolocX == data.xdirection[i])
-                    ys = data.ydirection[i][indys]
-                    validbeamlets = np.in1d(data.yinter, ys)
-                    # After next line, validbeamlets contains all beamlets that are "fair game" in this row.
-                    validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
-                    # First index in this row
-                    indleft = data.llist[i][m] - min(validbeamlets) + 1 + leftlimits
-                    indright = data.rlist[i][m] - min(validbeamlets) - 1 + leftlimits
-                    # Keep the location of the le)ftmost leaf
-                    leftlimits = leftlimits + len(validbeamlets)
-                    if (indleft < indright + 1):
-                        #openaperture = chain(openaperture, range(indleft, indright + 1))
-                        for thisbeamlet in range(indleft, indright + 1):
-                            openaperture.append(thisbeamlet)
-
-                openaperturenp = np.array(openaperture, dtype=int)
+                openaperturenp = updateOpenAperture(i)
                 self.currentDose += ThisDlist[openaperturenp,:].transpose() * np.repeat(self.currentIntensities[i], len(openaperturenp), axis = 0)
                 # WILMER Change to:
                 diagmaker = np.zeros(ThisDlistshader.shape[0], dtype = float)
-                diagmaker[[ij for ij in openaperture]] = 1.0
+                diagmaker[[ij for ij in openaperturenp]] = 1.0
                 ThisDlistshader = sparse.diags(diagmaker, 0) * ThisDlist
 
                 dZdK[:,i] = ThisDlistshader.transpose().sum(axis=1)
@@ -852,6 +829,32 @@ def colGen(C):
             #notinC and denote the final set of fluence rates by yk
 
     return(pstar)
+
+def updateOpenAperture(i):
+    #input: i is the number of the aperture that I'm working on
+    leftlimits = 0
+    openaperture = []
+    for m in range(0, len(data.llist[i])):
+        # Find geographical values of llist and rlist.
+        # Find geographical location of the first row.
+        geolocX = data.xinter[m]
+        # Find all possible locations of beamlets in this row according to geographical location
+        indys = np.where(geolocX == data.xdirection[i])
+        ys = data.ydirection[i][indys]
+        validbeamlets = np.in1d(data.yinter, ys)
+        # After next line, validbeamlets contains all beamlets that are "fair game" in this row.
+        validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
+        # First index in this row
+        indleft = data.llist[i][m] - min(validbeamlets) + 1 + leftlimits
+        indright = data.rlist[i][m] - min(validbeamlets) - 1 + leftlimits
+        # Keep the location of the le)ftmost leaf
+        leftlimits = leftlimits + len(validbeamlets)
+        if (indleft < indright + 1):
+            #openaperture = chain(openaperture, range(indleft, indright + 1))
+            for thisbeamlet in range(indleft, indright + 1):
+                openaperture.append(thisbeamlet)
+    openaperturenp = np.array(openaperture, dtype=int)
+    return(openaperturenp)
 
 
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')

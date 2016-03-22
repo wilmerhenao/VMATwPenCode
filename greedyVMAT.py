@@ -23,7 +23,7 @@ from itertools import chain
 from numba import jit
 
 rootFolder = '/media/wilmer/datadrive'
-#rootFolder = '/home/wilmer/Documents/Troy_BU'
+rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -103,6 +103,7 @@ class vmat_class:
     voxelgradient = []
     scipygradient = []
     openApertureMaps = []
+    diagmakers = []
     dZdK = 0.0
 
     # data class function
@@ -116,9 +117,7 @@ class vmat_class:
                 DRestricted = Dlist[i] * 0.0
                 #openaperturenp = updateOpenAperture(i)
                 self.currentDose += Dlist[i][self.openApertureMaps[i],:].transpose() * np.repeat(self.currentIntensities[i], len(self.openApertureMaps[i]), axis = 0)
-                diagmaker = np.zeros(DRestricted.shape[0], dtype = float)
-                diagmaker[[ij for ij in self.openApertureMaps[i]]] = 1.0
-                DRestricted = sparse.diags(diagmaker, 0) * Dlist[i]
+                DRestricted = sparse.diags(self.diagmakers[i], 0) * Dlist[i]
                 self.dZdK[:,i] = DRestricted.transpose().sum(axis=1)
 
     def calcGradientandObjValue(self):
@@ -171,6 +170,7 @@ data.dataDirectory = readfolder
 
 # Function definitions
 ####################################################################
+
 def readctvoxelinfo():
     # This function returns a dictionary with the dimension in voxel
     # units for x,y,z axis
@@ -344,9 +344,10 @@ for i in range(0, data.numbeams):
         data.xinter = np.intersect1d(data.xinter, data.xdirection[i])
         data.yinter = np.intersect1d(data.yinter, data.ydirection[i])
     data.openApertureMaps.append([]) #Just start an empty map of apertures
+    data.diagmakers.append([])
 ## After reading the beaminfo information. Read CUT the data.
 
-N = len(data.yinter) #N will be related to the Y axis.updateOp
+N = len(data.yinter) #N will be related to the Y axis.
 M = len(data.xinter) #M will be related to the X axis.
 
 ###################################################
@@ -446,20 +447,12 @@ for s in range(0, data.numstructs):
         quadHelperOver[int(data.regions[s].indices[j])] = functionData[1][s]
         quadHelperUnder[int(data.regions[s].indices[j])] = functionData[2][s]
 
+
 def calcObjGrad(x, user_data = None):
     data.currentIntensities = x
     data.calcDose()
     data.calcGradientandObjValue()
     return(data.objectiveValue, data.aperturegradient)
-
-def eval_g(x, user_data= None):
-           return array([], float_)
-
-def eval_jac_g(x, flag, user_data = None):
-    if flag:
-        return ([], [])
-    else:
-        return array([])
 
 def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, index):
     # C, C2, C3 are constants in the penalization function
@@ -711,13 +704,13 @@ def solveRMC():
     res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds = boundschoice, options={'ftol':1e-6, 'disp':5,'maxiter':1000})
 
     print('Restricted Master Problem solved in ' + str(time.time() - start) + ' seconds')
+    return(res)
     #exit()
 
 # The next function prints DVH values
 def printresults(iterationNumber, myfolder):
     numzvectors = 1
-    maskValueFull = [int(i) for i in data.fullMaskValue]
-    maskValueFull = np.array(maskValueFull)
+    maskValueFull = np.array([int(i) for i in data.fullMaskValue])
     print('Starting to Print Results')
     for i in range(0, numzvectors):
         zvalues = data.currentDose
@@ -757,9 +750,11 @@ def printresults(iterationNumber, myfolder):
     plt.xlabel('Dose Gray')
     plt.ylabel('Fractional Volume')
     plt.title('6 beams iteration:' + str(iterationNumber))
+    #allNames.reverse()
+    #plt.legend([allNames[i] for i in data.targets])
     plt.savefig(myfolder + 'DVH-at-Iteration-Subplot' + str(iterationNumber) + 'greedyVMAT.png')
     plt.close()
-    
+
 def colGen(C):
     # User defined data
     C2 = 1.0
@@ -785,6 +780,7 @@ def colGen(C):
 
     pstar = -float("inf")
     plotcounter = 0
+    optimalvalues = []
     while(pstar < 0):
         # Step 1 on Fei's paper. Use the information on the current treatment plan to formulate and solve an instance of the PP
         data.calcDose()
@@ -811,13 +807,20 @@ def colGen(C):
             data.llist[bestAperture] = lm
             data.rlist[bestAperture] = rm
             # Precalculate the aperture map to save times.
-            data.openApertureMaps[bestAperture] = updateOpenAperture(bestAperture)
-            solveRMC()
+            data.openApertureMaps[bestAperture], data.diagmakers[bestAperture] = updateOpenAperture(bestAperture)
+            rmpres = solveRMC()
+            optimalvalues.append(rmpres.fun)
             plotcounter = plotcounter + 1
-            #printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
+            printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
             #notinC and denote the final set of fluence rates by yk
-
+    #plt.plot(optimalvalues)
+    #plt.xlabel('Apertures Added')
+    #plt.ylabel('Objective Function')
+    #plt.title('Obj. Function Evolution')
+    #plt.savefig('/home/wilmer/EvolutionobjfunctiongreedyVMAT.png')
+    #plt.close()
+    #plt.show()
     return(pstar)
 
 def updateOpenAperture(i):
@@ -844,8 +847,9 @@ def updateOpenAperture(i):
             for thisbeamlet in range(indleft, indright + 1):
                 openaperture.append(thisbeamlet)
     openaperturenp = np.array(openaperture, dtype=int)
-    return(openaperturenp)
-
+    diagmaker = np.zeros(Dlist[i].shape[0], dtype = float)
+    diagmaker[[ij for ij in openaperturenp]] = 1.0
+    return(openaperturenp, diagmaker)
 
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')
 

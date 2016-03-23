@@ -23,7 +23,7 @@ from itertools import chain
 from numba import jit
 
 rootFolder = '/media/wilmer/datadrive'
-rootFolder = '/home/wilmer/Documents/Troy_BU'
+#rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -287,7 +287,7 @@ print('Masking has been calculated')
 
 gastart = 0 ;
 gaend = 356;
-gastep = 60;
+gastep = 100;
 castart = 0;
 caend = 0;
 castep = 0;

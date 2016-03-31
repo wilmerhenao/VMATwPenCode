@@ -288,7 +288,7 @@ print('Masking has been calculated')
 
 gastart = 0 ;
 gaend = 356;
-gastep = 100;
+gastep = 2;
 castart = 0;
 caend = 0;
 castep = 0;

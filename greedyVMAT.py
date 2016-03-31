@@ -86,8 +86,8 @@ class vmat_class:
     dataDirectory = ""
 
     # dose variables
-    currentDose = [] # dose variable
-    currentIntensities = []
+    currentDose = np.empty(1) # dose variable
+    currentIntensities = np.empty(1)
     
     caligraphicC = []
     # this is the intersection of all beamlets that I am dealing with
@@ -285,6 +285,7 @@ data.maskValue = maskValueSingle
 data.fullMaskValue = maskValueFull
 print('Masking has been calculated')
 
+
 gastart = 0 ;
 gaend = 356;
 gastep = 100;
@@ -311,7 +312,6 @@ print('There is enough data for ' + str(len(ga)) + ' beam angles\n')
 # small voxel space and writes it out to a binary file to be used in the
 # optimization
 nBPB = np.zeros(len(ga))
-# nDIJSPB is the number of nonzeros in the Dmatrix for each beam
 nDIJSPB = np.zeros(len(ga))
 
 ###############################################################################
@@ -469,11 +469,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     # N = Number of beamlets per row
     # M = Number of rows in an aperture
     # index = index location in the set of apertures that I have saved.
-    
-    networkNodes = []
-    # Start with arcs that go from the source to level m = 1
-    # Create source node
-    networkNodes.append([-1, 0, 0, 0, 0]) # m, l, r, distance, index of predecesor
+
     posBeginningOfRow = 0
     D = Dlist[index]
 
@@ -519,15 +515,16 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     nodesinpreviouslevel = 0
     posBeginningOfRow = 0
     thisnode = 0
-    # beamlets per row
+    # Max beamlets per row
     bpr = 50
     networkNodesNumber = bpr * bpr + M * bpr * bpr + bpr * bpr # An overestimate of the network nodes in this network
-    lnetwork = np.zeros(networkNodesNumber, dtype = np.int)
-    rnetwork = np.zeros(networkNodesNumber, dtype = np.int)
+    # Initialization of network vectors. This used to be a list before
+    lnetwork = np.zeros(networkNodesNumber, dtype = np.int) #left limit vector
+    rnetwork = np.zeros(networkNodesNumber, dtype = np.int) #right limit vector
     mnetwork = np.ones(networkNodesNumber, dtype = np.int) #Only to save some time in the first loop
-    wnetwork = np.zeros(networkNodesNumber, dtype = np.float)
-    dadnetwork = np.zeros(networkNodesNumber, dtype = np.int)
-    # The real work starts here
+    wnetwork = np.zeros(networkNodesNumber, dtype = np.float) # Weight Vector
+    dadnetwork = np.zeros(networkNodesNumber, dtype = np.int) # Dad Vector. Where Dad is the combination of (l,r) in previous row
+    # Work on the first row perimeter and area values
     for l in range(math.ceil(max(min(validbeamlets) - 1, lcm[0] - vmaxm * angdistancem/speedlim, lcp[0] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[0] + vmaxm * angdistancem / speedlim, lcp[0] + vmaxp * angdistancep / speedlim))):
         for r in range(math.ceil(max(l + 1, rcm[0] - vmaxm * angdistancem/speedlim, rcp[0] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets)+1, rcm[0] + vmaxm * angdistancem / speedlim, rcp[0] + vmaxp * angdistancep / speedlim))):
             thisnode = thisnode + 1
@@ -594,14 +591,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 minloc = np.argmin(newweights)
                 wnetwork[thisnode] = newweights[minloc]
                 dadnetwork[thisnode] = minloc + posBeginningOfRow - oldflag
-                #for mynode in (range(posBeginningOfRow - oldflag, posBeginningOfRow)):
-                    # Create arc from (m-1, l, r) to (m, l, r). And assign weight
-                #    lambdaletter = math.fabs(lnetwork[mynode] - l) + math.fabs(rnetwork[mynode] - r) - 2 * max(0, lnetwork[mynode] - r) - 2 * max(0, l - math.fabs(rnetwork[mynode]))
-                #    weight = C * (C2 * lambdaletter - C3simplifier) - Dose
-                #    if(wnetwork[mynode] + weight < wnetwork[thisnode]):
-                #        wnetwork[thisnode] = wnetwork[mynode] + weight
-                        # And next we look for the minimum distance.
-                #        dadnetwork[thisnode] = mynode
+
         posBeginningOfRow = nodesinpreviouslevel + posBeginningOfRow # This is the total number of network nodes
         # Keep the location of the leftmost leaf
         leftmostleaf = len(ys) + leftmostleaf
@@ -674,8 +664,7 @@ def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, 
 
         i = i + 1
 
-    print("the best aperture was: ", bestAperture)
-
+    print("Best aperture was: ", bestAperture)
     return(pstar, lallret, rallret, bestAperture)
 
 def solveRMC():
@@ -705,7 +694,6 @@ def solveRMC():
 
     print('Restricted Master Problem solved in ' + str(time.time() - start) + ' seconds')
     return(res)
-    #exit()
 
 # The next function prints DVH values
 def printresults(iterationNumber, myfolder):
@@ -740,10 +728,11 @@ def printresults(iterationNumber, myfolder):
     plt.xlabel('Dose Gray')
     plt.ylabel('Fractional Volume')
     plt.title('6 beams iteration: ' + str(iterationNumber))
+    plt.legend(allNames)
     plt.savefig(myfolder + 'DVH-at-Iteration' + str(iterationNumber) + 'greedyVMAT.png')
     plt.close()
 
-    voitoplot = [18, 23, 17, 2, 8]
+    voitoplot = [0, 18, 23, 17, 2, 8]
     dvhsub2 = dvh_matrix[voitoplot,]
     myfig2 = pylab.plot(bin_center, dvhsub2.T, linewidth = 1.0, linestyle = '--')
     plt.grid(True)
@@ -751,7 +740,7 @@ def printresults(iterationNumber, myfolder):
     plt.ylabel('Fractional Volume')
     plt.title('6 beams iteration:' + str(iterationNumber))
     #allNames.reverse()
-    #plt.legend([allNames[i] for i in data.targets])
+    plt.legend([allNames[i] for i in voitoplot])
     plt.savefig(myfolder + 'DVH-at-Iteration-Subplot' + str(iterationNumber) + 'greedyVMAT.png')
     plt.close()
 
@@ -811,7 +800,8 @@ def colGen(C):
             rmpres = solveRMC()
             optimalvalues.append(rmpres.fun)
             plotcounter = plotcounter + 1
-            printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
+            plotAperture(lm, rm, M, N, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/', plotcounter)
+            #printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
             #notinC and denote the final set of fluence rates by yk
     #plt.plot(optimalvalues)
@@ -822,6 +812,22 @@ def colGen(C):
     #plt.close()
     #plt.show()
     return(pstar)
+
+def plotAperture(l, r, M, N, myfolder, iterationNumber):
+    nrows, ncols = M,N
+    image = np.zeros(nrows*ncols)
+        # Reshape things into a 9x9 grid.
+    image = image.reshape((nrows, ncols))
+    for i in range(0, M):
+        image[i, l[i]:r[i]] = 1
+
+    row_labels = range(nrows)
+    col_labels = range(ncols)
+    plt.matshow(image)
+    plt.xticks(range(ncols), col_labels)
+    plt.yticks(range(nrows), row_labels)
+    plt.savefig(myfolder + 'Aperture' + str(iterationNumber) + 'greedyVMAT.png')
+    plt.close()
 
 def updateOpenAperture(i):
     #input: i is the number of the aperture that I'm working on
@@ -843,7 +849,6 @@ def updateOpenAperture(i):
         # Keep the location of the le)ftmost leaf
         leftlimits = leftlimits + len(validbeamlets)
         if (indleft < indright + 1):
-            #openaperture = chain(openaperture, range(indleft, indright + 1))
             for thisbeamlet in range(indleft, indright + 1):
                 openaperture.append(thisbeamlet)
     openaperturenp = np.array(openaperture, dtype=int)

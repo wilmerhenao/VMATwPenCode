@@ -113,8 +113,10 @@ class vmat_class:
         self.dZdK = np.matrix(np.zeros((self.numvoxels, self.numbeams)))
         if len(self.caligraphicC) != 0:
             for i in self.caligraphicC:
-                self.currentDose += DlistT[i][:,self.openApertureMaps[i]] * np.repeat(self.currentIntensities[i], len(self.openApertureMaps[i]), axis = 0)
-                DRestricted = DlistT[i] * sparse.diags(self.diagmakers[i], 0)
+                #WILMER Change to:
+                thisDlist = Dlist[i].transpose()
+                self.currentDose += thisDlist[:,self.openApertureMaps[i]] * np.repeat(self.currentIntensities[i], len(self.openApertureMaps[i]), axis = 0)
+                DRestricted = thisDlist * sparse.diags(self.diagmakers[i], 0)
                 self.dZdK[:,i] = DRestricted.sum(axis=1)
 
     def calcGradientandObjValue(self):
@@ -360,7 +362,6 @@ data.Dmat = sparse.csr_matrix((data.numX, data.numvoxels), dtype=float)
 # Work with the D matrices for each beam angle
 overallDijsCounter = 0
 Dlist = []
-DlistT = []
 for i in range(0, data.numbeams):
     fname = 'Gantry' + str(ga[i]) + '_Couch' + str(0) + '_D.mat'
     print('Processing matrix from gantry & couch angle: ' + fname)
@@ -376,7 +377,6 @@ for i in range(0, data.numbeams):
     Dlittle = sparse.csr_matrix((dt, (jt, newbt)), shape = (data.numX, data.numvoxels), dtype=float)
     # For each matrix D, store its values in a list
     Dlist.append(Dlittle)
-    DlistT.append(1)
 
 print('Finished reading D matrices')
 
@@ -394,7 +394,6 @@ for i in range(0, data.numbeams):
     data.ydirection[i] = data.ydirection[i][ininter]
 
     Dlist[i] = Dlist[i][ininter,:]
-    DlistT[i] = Dlist[i].transpose()
     data.beamletsPerBeam[i] = len(ininter)
     beamletCounter[i+1] = beamletCounter[i] + data.beamletsPerBeam[i]
 

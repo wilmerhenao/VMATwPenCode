@@ -114,8 +114,7 @@ class vmat_class:
         if len(self.caligraphicC) != 0:
             for i in self.caligraphicC:
                 self.currentDose += DlistT[i][:,self.openApertureMaps[i]] * np.repeat(self.currentIntensities[i], len(self.openApertureMaps[i]), axis = 0)
-                DRestricted = DlistT[i] * sparse.diags(self.diagmakers[i], 0)
-                self.dZdK[:,i] = DRestricted.sum(axis=1)
+                self.dZdK[:,i] = (DlistT[i] * sparse.diags(self.diagmakers[i], 0)).sum(axis=1)
 
     def calcGradientandObjValue(self):
         oDoseObj = self.currentDose - quadHelperThresh
@@ -285,7 +284,7 @@ print('Masking has been calculated')
 
 gastart = 0 ;
 gaend = 356;
-gastep = 60;
+gastep = 2;
 castart = 0;
 caend = 0;
 castep = 0;
@@ -690,7 +689,7 @@ def solveRMC():
             boundschoice.append((0, 0))
         else:
             boundschoice.append((0, None))
-    res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds = boundschoice, options={'ftol':1e-6, 'disp':5,'maxiter':1000})
+    res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds = boundschoice, options={'ftol':1e-2, 'disp':5,'maxiter':15})
 
     print('Restricted Master Problem solved in ' + str(time.time() - start) + ' seconds')
     return(res)

@@ -312,7 +312,7 @@ nDIJSPB = np.zeros(len(ga))
 
 ###############################################################################
 ## Beginning of Troy's cpp code (interpreted, not copied)
-
+## A comment
 ## This comes from first two lines in doseInputs txt file (troy's version)
 data.numvoxels = nVox
 data.numbeams = len(ga)

@@ -453,6 +453,16 @@ def calcObjGrad(x, user_data = None):
     data.calcGradientandObjValue()
     return(data.objectiveValue, data.aperturegradient)
 
+def fvalidbeamlets(i, index):
+    # Find geographical location of the first row.
+    geolocX = data.xinter[i]
+    # Find all possible locations of beamlets in this row according to geographical location
+    indys = np.where(geolocX == data.xdirection[index])
+    ys = data.ydirection[index][indys]
+    validbeamlets = np.in1d(data.yinter, ys)
+    validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
+    return(validbeamlets)
+
 def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, index):
     # C, C2, C3 are constants in the penalization function
     # angdistancem = $\delta_{c^-c}$
@@ -496,13 +506,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         lcp = data.llist[succ]
         rcp = data.rlist[succ]
 
-    # Find geographical location of the first row.
-    geolocX = data.xinter[0]
-    # Find all possible locations of beamlets in this row according to geographical location
-    indys = np.where(geolocX == data.xdirection[index])
-    ys = data.ydirection[index][indys]
-    validbeamlets = np.in1d(data.yinter, ys)
-    validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
+    validbeamlets = fvalidbeamlets(0, index)
     # Keep the location of the most leaf
     leftmostleaf = len(ys) # Position in python position(-1) of the leftmost leaf
     nodesinpreviouslevel = 0

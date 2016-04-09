@@ -284,7 +284,7 @@ print('Masking has been calculated')
 
 gastart = 0 ;
 gaend = 356;
-gastep = 2;
+gastep = 60;
 castart = 0;
 caend = 0;
 castep = 0;
@@ -508,7 +508,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
 
     validbeamlets = fvalidbeamlets(0, index)
     # Keep the location of the most leaf
-    leftmostleaf = len(ys) # Position in python position(-1) of the leftmost leaf
+    leftmostleaf = len(validbeamlets) # Position in python position(-1) of the leftmost leaf
     nodesinpreviouslevel = 0
     oldflag = nodesinpreviouslevel
     # First handle the calculations for the first row
@@ -555,13 +555,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         # Show time taken per row
         myend   =  time.time()
         mystart = myend
-        # Find geographical location of this row.
-        geolocX = data.xinter[m-1]
-        # Find all possible locations of beamlets in this row according to geography
-        indys = np.where(geolocX == data.xdirection[index])
-        ys = data.ydirection[index][indys]
-        validbeamlets = np.in1d(data.yinter, ys)
-        validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
+        validbeamlets = fvalidbeamlets(m-1, index)
         oldflag = nodesinpreviouslevel
         nodesinpreviouslevel = 0
 
@@ -597,7 +591,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
 
         posBeginningOfRow = nodesinpreviouslevel + posBeginningOfRow # This is the total number of network nodes
         # Keep the location of the leftmost leaf
-        leftmostleaf = len(ys) + leftmostleaf
+        leftmostleaf = len(validbeamlets) + leftmostleaf
     thisnode = thisnode + 1
     for mynode in (range(posBeginningOfRow - nodesinpreviouslevel, posBeginningOfRow)):
         weight = C * ( C2 * (rnetwork[mynode] - lnetwork[mynode] ))

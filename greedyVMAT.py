@@ -834,13 +834,7 @@ def updateOpenAperture(i):
     for m in range(0, len(data.llist[i])):
         # Find geographical values of llist and rlist.
         # Find geographical location of the first row.
-        geolocX = data.xinter[m]
-        # Find all possible locations of beamlets in this row according to geographical location
-        indys = np.where(geolocX == data.xdirection[i])
-        ys = data.ydirection[i][indys]
-        validbeamlets = np.in1d(data.yinter, ys)
-        # After next line, validbeamlets contains all beamlets that are "fair game" in this row.
-        validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
+        validbeamlets = fvalidbeamlets(m, i)
         # First index in this row
         indleft = data.llist[i][m] - min(validbeamlets) + 1 + leftlimits
         indright = data.rlist[i][m] - min(validbeamlets) - 1 + leftlimits

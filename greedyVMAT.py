@@ -606,7 +606,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     r.reverse()
     return(p, l, r)
 
-def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, M):
+def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M):
     lall = []
     rall = []
     lallret = []
@@ -635,12 +635,18 @@ def PricingProblem(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, N, 
         # If there are no predecessors or succesors just return an empty list. If there ARE, then return the indices
         if 0 == len(succs):
             succ = []
+            angdistancep = np.inf
         else:
             succ = min(succs)
+            angdistancep = (succ - index) * gastep
         if 0 == len(predecs):
             predec = []
+            angdistancem = np.inf
         else:
             predec = max(predecs)
+            angdistancem = (index - predec) * gastep
+
+        #Find Numeric value of previous and next angle.
 
         p, l, r = PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, index)
         lall.append(l)
@@ -765,7 +771,7 @@ def colGen(C):
         data.calcDose()
         data.calcGradientandObjValue()
         print('value of C:', C)
-        pstar, lm, rm, bestAperture = PricingProblem(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, N, M)
+        pstar, lm, rm, bestAperture = PricingProblem(C, C2, C3, 0.5, vmax, speedlim, N, M)
         print(pstar)
         with open("/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/whatIhave.txt", "a") as myf:
             myf.write(str(C))

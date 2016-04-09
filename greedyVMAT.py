@@ -284,7 +284,7 @@ print('Masking has been calculated')
 
 gastart = 0 ;
 gaend = 356;
-gastep = 60;
+gastep = 30;
 castart = 0;
 caend = 0;
 castep = 0;
@@ -507,15 +507,12 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         rcp = data.rlist[succ]
 
     validbeamlets = fvalidbeamlets(0, index)
+    # First handle the calculations for the first row
+    beamGrad = D * data.voxelgradient
     # Keep the location of the most leaf
     leftmostleaf = len(validbeamlets) # Position in python position(-1) of the leftmost leaf
     nodesinpreviouslevel = 0
     oldflag = nodesinpreviouslevel
-    # First handle the calculations for the first row
-
-    beamGrad = D * data.voxelgradient
-
-    nodesinpreviouslevel = 0
     posBeginningOfRow = 0
     thisnode = 0
     # Max beamlets per row
@@ -553,12 +550,10 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     # Then handle the calculations for the m rows. Nodes that are neither source nor sink.
     for m in range(2,M):
         # Show time taken per row
-        myend   =  time.time()
-        mystart = myend
         validbeamlets = fvalidbeamlets(m-1, index)
         oldflag = nodesinpreviouslevel
         nodesinpreviouslevel = 0
-
+        lmlimit = leftmostleaf
         # And now process normally checking against valid beamlets
         for l in range(math.ceil(max(min(validbeamlets)-1, lcm[m] - vmaxm * angdistancem/speedlim, lcp[m] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[m] + vmaxm * angdistancem / speedlim, lcp[m] + vmaxp * angdistancep / speedlim))):
             for r in range(math.ceil(max(l + 1, rcm[m] - vmaxm * angdistancem/speedlim, rcp[m] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets) + 1, rcm[m] + vmaxm * angdistancem / speedlim, rcp[m] + vmaxp * angdistancep / speedlim))):
@@ -570,8 +565,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 rnetwork[thisnode] = r
                 mnetwork[thisnode] = m
                 wnetwork[thisnode] = np.inf
-
-                lmlimit = leftmostleaf
                 rmlimit = (r - l) + leftmostleaf
                 if(lmlimit + 1 <= rmlimit - 1):
                     #Dose = - sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.voxelgradient)
@@ -771,7 +764,6 @@ def colGen(C):
         # Step 1 on Fei's paper. Use the information on the current treatment plan to formulate and solve an instance of the PP
         data.calcDose()
         data.calcGradientandObjValue()
-        #p, lm, rm =  PPsubroutine(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, 4, [], N, M, 5)
         print('value of C:', C)
         pstar, lm, rm, bestAperture = PricingProblem(C, C2, C3, 0.5, angdistancem, angdistancep, vmax, speedlim, N, M)
         print(pstar)

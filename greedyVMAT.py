@@ -838,11 +838,11 @@ def updateOpenAperture(i):
         # Find geographical location of the first row.
         validbeamlets, validbeamletspecialrange = fvalidbeamlets(m, i)
         # First index in this row
-        indleft = data.llist[i][m] - min(validbeamlets) + 1 + leftlimits
-        indright = data.rlist[i][m] - min(validbeamletspecialrange) - 1 + leftlimits
-        # Keep the location of the le)ftmost leaf
-        leftlimits = leftlimits + len(validbeamletspecialrange)
-        if (indleft < indright + 1):
+        indleft = data.llist[i][m] + 1 + leftlimits
+        indright = data.rlist[i][m] - 1 + leftlimits
+        # Keep the location of the letftmost leaf
+        leftlimits = leftlimits + len(validbeamlets)
+        if (indleft < indright + 1): # If the leaf opening is not completely close
             for thisbeamlet in range(indleft, indright + 1):
                 openaperture.append(thisbeamlet)
     openaperturenp = np.array(openaperture, dtype=int)

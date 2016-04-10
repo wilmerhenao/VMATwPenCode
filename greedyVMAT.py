@@ -63,9 +63,9 @@ class vmat_class:
     totaldijs = 0 # num of nonzeros in Dij matrix
     nnz_jac_g = 0
     objectiveValue = float("inf")
-    
+
     # vectors
-    beamletsPerBeam = [] # number of beamlets per beam 
+    beamletsPerBeam = [] # number of beamlets per beam
     dijsPerBeam = [] # number of nonzeroes in Dij per beam
     maskValue = [] #non-overlapping mask value per voxel
     fullMaskValue = [] # complete mask value per voxel
@@ -80,7 +80,7 @@ class vmat_class:
     voxelAssignment = []
     notinC = [] # List of apertures not yet selected
     caligraphicC = [] # List of apertures already selected
-    
+
     # varios folders
     outputDirectory = ""# given by the user in the first lines of *.py
     dataDirectory = ""
@@ -88,15 +88,15 @@ class vmat_class:
     # dose variables
     currentDose = np.empty(1) # dose variable
     currentIntensities = np.empty(1)
-    
+
     caligraphicC = []
     # this is the intersection of all beamlets that I am dealing with
     xinter = []
     yinter = []
-    
+
     xdirection = []
     ydirection = []
-    
+
     llist = []
     rlist = []
 
@@ -144,7 +144,7 @@ class vmat_class:
 ########## END OF CLASS DECLARATION ###########################################
 
 catemp = []
-gatemp = [] 
+gatemp = []
 for thisline in mylines:
     a, b = thisline.split('\t')
     if (int(float(a)) % 10 == 0):
@@ -170,7 +170,7 @@ data.dataDirectory = readfolder
 def readctvoxelinfo():
     # This function returns a dictionary with the dimension in voxel
     # units for x,y,z axis
-    
+
     lines = [line.rstrip('\n') for line in open(readfolder + 'CTVOXEL_INFO.txt')]
     tempocoor = []
     for i in range(0,3):
@@ -272,7 +272,7 @@ for s in priority:
     norepeat = np.setdiff1d(norepeat, tempindices)
 
 print('finished assigning voxels to regions. Region objects read')
- 
+
 # Read in mask values into structure data
 data.maskValue = maskValueSingle
 data.fullMaskValue = maskValueFull
@@ -365,7 +365,7 @@ for i in range(0, data.numbeams):
     # write out bixel sorted binary file
     [b,j,d] = sparse.find(D)
     newb = originalVoxels[b]
-    
+
     # write out voxel sorted binary file
     [jt,bt,dt] = sparse.find(D.transpose())
     newbt = originalVoxels[bt]
@@ -461,13 +461,13 @@ def fvalidbeamlets(i, index):
     validbeamletspecialrange = np.append(np.append(min(validbeamlets) - 1, validbeamlets), max(validbeamlets) + 1)
     return(validbeamlets, validbeamletspecialrange)
 
-def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, index):
+def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, thisApertureIndex):
     # C, C2, C3 are constants in the penalization function
     # angdistancem = $\delta_{c^-c}$
     # angdistancep = $\delta_{cc^+}$
     # vmax = maximum leaf speed
     # speedlim = s
-    # predec = predecesor index, either an index or an empty list
+    # predec = predecesor thisApertureIndex, either an index or an empty list
     # succ = succesor index, either an index or an empty list
     # lcm = vector of left limits in the previous aperture
     # lcp = vector of left limits in the next aperture
@@ -475,10 +475,11 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     # rcp = vector of right limits in the previous aperture
     # N = Number of beamlets per row
     # M = Number of rows in an aperture
-    # index = index location in the set of apertures that I have saved.
-
+    # thisApertureIndex = index location in the set of apertures that I have saved.
+    if 1 == thisApertureIndex:
+        print('debug here')
     posBeginningOfRow = 0
-    D = Dlist[index]
+    D = Dlist[thisApertureIndex]
     # vmaxm and vmaxp describe the speeds that are possible for the leaves from the predecessor and to the successor
     vmaxm = vmax
     vmaxp = vmax
@@ -503,10 +504,9 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         lcp = data.llist[succ]
         rcp = data.rlist[succ]
 
-    validbeamlets, validbeamletspecialrange = fvalidbeamlets(0, index)
+    validbeamlets, validbeamletspecialrange = fvalidbeamlets(0, thisApertureIndex)
     # First handle the calculations for the first row
     beamGrad = D * data.voxelgradient
-    print('what is the shape', beamGrad.shape)
     # Keep the location of the most leaf
 
     nodesinpreviouslevel = 0
@@ -554,7 +554,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     # Then handle the calculations for the m rows. Nodes that are neither source nor sink.
     for m in range(2,M):
         # Get the beamlets that are valid in this row in particular (all others are still valid but are zero)
-        validbeamlets, validbeamletspecialrange = fvalidbeamlets(m-1, index)
+        validbeamlets, validbeamletspecialrange = fvalidbeamlets(m-1, thisApertureIndex)
         oldflag = nodesinpreviouslevel
         nodesinpreviouslevel = 0
         # And now process normally checking against valid beamlets
@@ -621,18 +621,18 @@ def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M):
 
     bestAperture = None
     # This is just for debugging
-    #for index in data.notinC:
+    #for thisApertureIndex in data.notinC:
     # Wilmer. Fix this, this is only going to index 0 for debugging purposes
     print("Choosing one aperture amongst the ones that are available")
-    for index in data.notinC:
-        print("analysing available aperture" , index)
+    for thisApertureIndex in data.notinC:
+        print("analysing available aperture" , thisApertureIndex)
         # Find the succesor and predecessor of this particular element
         try:
-            succs = [i for i in data.caligraphicC if i > index]
+            succs = [i for i in data.caligraphicC if i > thisApertureIndex]
         except:
             succs = []
         try:
-            predecs = [i for i in data.caligraphicC if i < index]
+            predecs = [i for i in data.caligraphicC if i < thisApertureIndex]
         except:
             predecs = []
 
@@ -642,22 +642,22 @@ def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M):
             angdistancep = np.inf
         else:
             succ = min(succs)
-            angdistancep = (succ - index) * gastep
+            angdistancep = (succ - thisApertureIndex) * gastep
         if 0 == len(predecs):
             predec = []
             angdistancem = np.inf
         else:
             predec = max(predecs)
-            angdistancem = (index - predec) * gastep
+            angdistancem = (thisApertureIndex - predec) * gastep
 
         #Find Numeric value of previous and next angle.
 
-        p, l, r = PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, index)
+        p, l, r = PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, thisApertureIndex)
         lall.append(l)
         rall.append(r)
         # The next "if" will be entered at least once.
         if p < pstar:
-            bestAperture = index
+            bestAperture = thisApertureIndex
             pstar = p
             rallret = rall[i]
             lallret = lall[i]
@@ -812,7 +812,7 @@ def plotAperture(l, r, M, N, myfolder, iterationNumber, bestAperture):
         # Reshape things into a 9x9 grid.
     image = image.reshape((nrows, ncols))
     for i in range(0, M):
-        image[i, l[i]:r[i]] = 1
+        image[i, l[i]:(r[i]-1)] = 1
 
     row_labels = range(nrows)
     col_labels = range(ncols)

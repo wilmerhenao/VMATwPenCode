@@ -23,7 +23,7 @@ from itertools import chain
 from numba import jit
 
 rootFolder = '/media/wilmer/datadrive'
-#rootFolder = '/home/wilmer/Documents/Troy_BU'
+rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -244,9 +244,6 @@ maskValueSingle = np.zeros(nVox.astype(np.int64))
 # this priority is the order of priority for assigning a single structure per
 # voxel (from least to most important)
 
-# CAREFUL!!!! masking value gets indices that agree with Troy's matlab implemen
-# tation. My reasoning is that I want to be compatible with his code down the
-# road. minimum maskin value will be 1 (one).
 for i in range(0, numStructs):
     s = priority[i]
     # generates mask values (the integer that we decompose to get structure
@@ -284,7 +281,7 @@ print('Masking has been calculated')
 
 gastart = 0 ;
 gaend = 356;
-gastep = 30;
+gastep = 60;
 castart = 0;
 caend = 0;
 castep = 0;
@@ -461,7 +458,8 @@ def fvalidbeamlets(i, index):
     ys = data.ydirection[index][indys]
     validbeamlets = np.in1d(data.yinter, ys)
     validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
-    return(validbeamlets)
+    validbeamletspecialrange = np.append(np.append(min(validbeamlets) - 1, validbeamlets), max(validbeamlets) + 1)
+    return(validbeamlets, validbeamletspecialrange)
 
 def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, index):
     # C, C2, C3 are constants in the penalization function
@@ -488,7 +486,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     # Arranging the predecessors and the succesors.
     #Predecessor left and right indices
     if type(predec) is list:
-        lcm = [0] * M
+        lcm = [-1] * M
         rcm = [N] * M
         # If there is no predecessor is as if the pred. speed was infinite
         vmaxm = float("inf")
@@ -498,7 +496,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
 
     #Succesors left and right indices
     if type(succ) is list:
-        lcp = [0] * M
+        lcp = [-1] * M
         rcp = [N] * M
         # If there is no successor is as if the succ. speed was infinite.
         vmaxp = float("inf")
@@ -506,11 +504,11 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         lcp = data.llist[succ]
         rcp = data.rlist[succ]
 
-    validbeamlets = fvalidbeamlets(0, index)
+    validbeamlets, validbeamletspecialrange = fvalidbeamlets(0, index)
     # First handle the calculations for the first row
     beamGrad = D * data.voxelgradient
     # Keep the location of the most leaf
-    leftmostleaf = len(validbeamlets) # Position in python position(-1) of the leftmost leaf
+    leftmostleaf = len(validbeamletspecialrange) # Position in python position(-1) of the leftmost leaf
     nodesinpreviouslevel = 0
     oldflag = nodesinpreviouslevel
     posBeginningOfRow = 0
@@ -525,15 +523,17 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     wnetwork = np.zeros(networkNodesNumber, dtype = np.float) # Weight Vector
     dadnetwork = np.zeros(networkNodesNumber, dtype = np.int) # Dad Vector. Where Dad is the combination of (l,r) in previous row
     # Work on the first row perimeter and area values
-    for l in range(math.ceil(max(min(validbeamlets) - 1, lcm[0] - vmaxm * angdistancem/speedlim, lcp[0] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[0] + vmaxm * angdistancem / speedlim, lcp[0] + vmaxp * angdistancep / speedlim))):
-        for r in range(math.ceil(max(l + 1, rcm[0] - vmaxm * angdistancem/speedlim, rcp[0] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets)+1, rcm[0] + vmaxm * angdistancem / speedlim, rcp[0] + vmaxp * angdistancep / speedlim))):
+    leftrange = np.intersect1d(range(math.ceil(max(-1, lcm[0] - vmaxm * angdistancem/speedlim, lcp[0] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N - 1, lcm[0] + vmaxm * angdistancem / speedlim, lcp[0] + vmaxp * angdistancep / speedlim))), validbeamletspecialrange)
+    for l in leftrange:
+        rightrange = np.intersect1d(range(math.ceil(max(l + 1, rcm[0] - vmaxm * angdistancem/speedlim, rcp[0] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N, rcm[0] + vmaxm * angdistancem / speedlim, rcp[0] + vmaxp * angdistancep / speedlim))), validbeamletspecialrange)
+        for r in rightrange:
             thisnode = thisnode + 1
             nodesinpreviouslevel = nodesinpreviouslevel + 1
             # First I have to make sure to add the beamlets that I am interested in
             if(l + 1 <= r -1): # prints r numbers starting from l + 1. So range(3,4) = 3
                 # Dose = -sum( D[[i for i in range(l+1, r)],:] * data.voxelgradient)
                 Dose = -beamGrad[l+1:r].sum()
-                weight = C * ( C2 * (r - l) - C3 * b * (r - l)) - Dose
+                weight = C * ( C2 * (r - l) - C3 * b * (r - l)) - Dose + 10E-10 * (r-l) # The last term in order to prefer apertures opening in the center
             else:
                 weight = 0.0
             # Create node (1,l,r) in array of existing nodes and update the counter
@@ -550,13 +550,15 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     # Then handle the calculations for the m rows. Nodes that are neither source nor sink.
     for m in range(2,M):
         # Show time taken per row
-        validbeamlets = fvalidbeamlets(m-1, index)
+        validbeamlets, validbeamletspecialrange = fvalidbeamlets(m-1, index)
         oldflag = nodesinpreviouslevel
         nodesinpreviouslevel = 0
         lmlimit = leftmostleaf
         # And now process normally checking against valid beamlets
-        for l in range(math.ceil(max(min(validbeamlets)-1, lcm[m] - vmaxm * angdistancem/speedlim, lcp[m] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets), lcm[m] + vmaxm * angdistancem / speedlim, lcp[m] + vmaxp * angdistancep / speedlim))):
-            for r in range(math.ceil(max(l + 1, rcm[m] - vmaxm * angdistancem/speedlim, rcp[m] - vmaxp * angdistancep / speedlim)), math.floor(min(max(validbeamlets) + 1, rcm[m] + vmaxm * angdistancem / speedlim, rcp[m] + vmaxp * angdistancep / speedlim))):
+        leftrange = np.intersect1d(range(math.ceil(max(-1, lcm[m] - vmaxm * angdistancem/speedlim, lcp[m] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N - 1, lcm[m] + vmaxm * angdistancem / speedlim, lcp[m] + vmaxp * angdistancep / speedlim))), validbeamletspecialrange)
+        for l in leftrange:
+            rightrange = np.intersect1d(range(math.ceil(max(l + 1, rcm[m] - vmaxm * angdistancem/speedlim, rcp[m] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N, rcm[m] + vmaxm * angdistancem / speedlim, rcp[m] + vmaxp * angdistancep / speedlim))), validbeamletspecialrange)
+            for r in rightrange:
                 nodesinpreviouslevel = nodesinpreviouslevel + 1
                 thisnode = thisnode + 1
                 # Create node (m, l, r) and update the level counter
@@ -574,7 +576,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                     Dose = 0.0
                     C3simplifier = 0
                 lambdaletter = np.absolute(lnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow] - l) + np.absolute(rnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow] - r) - 2 * np.maximum(0, lnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow] - r) - 2 * np.maximum(0, l - np.absolute(rnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow]))
-                weight = C * (C2 * lambdaletter - C3simplifier) - Dose
+                weight = C * (C2 * lambdaletter - C3simplifier) - Dose  + 10E-10 * (r-l) # The last term in order to prefer apertures opening in the center
                 # Add the weights that were just calculated
                 newweights = wnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow] + weight
                 # Find the minimum and its position in the vector.
@@ -584,7 +586,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
 
         posBeginningOfRow = nodesinpreviouslevel + posBeginningOfRow # This is the total number of network nodes
         # Keep the location of the leftmost leaf
-        leftmostleaf = len(validbeamlets) + leftmostleaf
+        leftmostleaf = len(validbeamletspecialrange) + leftmostleaf
     thisnode = thisnode + 1
     for mynode in (range(posBeginningOfRow - nodesinpreviouslevel, posBeginningOfRow)):
         weight = C * ( C2 * (rnetwork[mynode] - lnetwork[mynode] ))
@@ -620,15 +622,19 @@ def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M):
     # Wilmer. Fix this, this is only going to index 0 for debugging purposes
     print("Choosing one aperture amongst the ones that are available")
     for index in data.notinC:
-    #for index in [0]:
+        print(data.caligraphicC)
         print("analysing available aperture" , index)
         # Find the succesor and predecessor of this particular element
         try:
-            succs = [i for i in range(0, data.caligraphicC) if i > index]
+            succs = [i for i in data.caligraphicC if i > index]
+            if(len(succs) > 0):
+                print('succs', succs)
         except:
             succs = []
         try:
-            predecs = [i for i in range(0, data.caligraphicC) if i < index]
+            predecs = [i for i in data.caligraphicC if i < index]
+            if(len(predecs) > 0):
+                print('predecs', predecs)
         except:
             predecs = []
 
@@ -746,7 +752,7 @@ def colGen(C):
     C3 = 1.0
     angdistancem = 60
     angdistancep = 60
-    vmax = 2.0
+    vmax = 2.0/60
     speedlim = 3.0
 
 
@@ -796,20 +802,13 @@ def colGen(C):
             rmpres = solveRMC()
             optimalvalues.append(rmpres.fun)
             plotcounter = plotcounter + 1
-            plotAperture(lm, rm, M, N, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/', plotcounter)
+            plotAperture(lm, rm, M, N, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/', plotcounter, bestAperture)
             printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
             #notinC and denote the final set of fluence rates by yk
-    #plt.plot(optimalvalues)
-    #plt.xlabel('Apertures Added')
-    #plt.ylabel('Objective Function')
-    #plt.title('Obj. Function Evolution')
-    #plt.savefig('/home/wilmer/EvolutionobjfunctiongreedyVMAT.png')
-    #plt.close()
-    #plt.show()
     return(pstar)
 
-def plotAperture(l, r, M, N, myfolder, iterationNumber):
+def plotAperture(l, r, M, N, myfolder, iterationNumber, bestAperture):
     nrows, ncols = M,N
     image = np.zeros(nrows*ncols)
         # Reshape things into a 9x9 grid.
@@ -822,22 +821,27 @@ def plotAperture(l, r, M, N, myfolder, iterationNumber):
     plt.matshow(image)
     plt.xticks(range(ncols), col_labels)
     plt.yticks(range(nrows), row_labels)
-    plt.savefig(myfolder + 'Aperture' + str(iterationNumber) + 'greedyVMAT.png')
+    plt.savefig(myfolder + 'Aperture' + str(iterationNumber) + '-at-' + str(bestAperture * gastep) + 'degrees.png')
     plt.close()
 
 def updateOpenAperture(i):
+    #This function returns the set of available AND open beamlets for the selected aperture (i)
+    #The idea is to have everythin ready and precalculated for the evaluation of the objective function in
+    #calcDose
     #input: i is the number of the aperture that I'm working on
+    #output: openaperturenp. the set of available AND open beamlets for the selected aperture
+    #        diagmaker. The same thing but in diagonal format.
     leftlimits = 0
     openaperture = []
     for m in range(0, len(data.llist[i])):
         # Find geographical values of llist and rlist.
         # Find geographical location of the first row.
-        validbeamlets = fvalidbeamlets(m, i)
+        validbeamlets, validbeamletspecialrange = fvalidbeamlets(m, i)
         # First index in this row
         indleft = data.llist[i][m] - min(validbeamlets) + 1 + leftlimits
-        indright = data.rlist[i][m] - min(validbeamlets) - 1 + leftlimits
+        indright = data.rlist[i][m] - min(validbeamletspecialrange) - 1 + leftlimits
         # Keep the location of the le)ftmost leaf
-        leftlimits = leftlimits + len(validbeamlets)
+        leftlimits = leftlimits + len(validbeamletspecialrange)
         if (indleft < indright + 1):
             for thisbeamlet in range(indleft, indright + 1):
                 openaperture.append(thisbeamlet)

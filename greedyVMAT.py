@@ -508,7 +508,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     # First handle the calculations for the first row
     beamGrad = D * data.voxelgradient
     # Keep the location of the most leaf
-    leftmostleaf = len(validbeamletspecialrange) # Position in python position(-1) of the leftmost leaf
+    leftmostleaf = len(validbeamlets) # Position in python position(-1) of the leftmost leaf
     nodesinpreviouslevel = 0
     oldflag = nodesinpreviouslevel
     posBeginningOfRow = 0
@@ -523,17 +523,21 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     wnetwork = np.zeros(networkNodesNumber, dtype = np.float) # Weight Vector
     dadnetwork = np.zeros(networkNodesNumber, dtype = np.int) # Dad Vector. Where Dad is the combination of (l,r) in previous row
     # Work on the first row perimeter and area values
-    leftrange = np.intersect1d(range(math.ceil(max(-1, lcm[0] - vmaxm * angdistancem/speedlim, lcp[0] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N - 1, lcm[0] + vmaxm * angdistancem / speedlim, lcp[0] + vmaxp * angdistancep / speedlim))), validbeamletspecialrange)
+    leftrange = range(math.ceil(max(-1, lcm[0] - vmaxm * angdistancem/speedlim, lcp[0] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N - 1, lcm[0] + vmaxm * angdistancem / speedlim, lcp[0] + vmaxp * angdistancep / speedlim)))
     for l in leftrange:
-        rightrange = np.intersect1d(range(math.ceil(max(l + 1, rcm[0] - vmaxm * angdistancem/speedlim, rcp[0] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N, rcm[0] + vmaxm * angdistancem / speedlim, rcp[0] + vmaxp * angdistancep / speedlim))), validbeamletspecialrange)
+        rightrange = range(math.ceil(max(l + 1, rcm[0] - vmaxm * angdistancem/speedlim, rcp[0] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N, rcm[0] + vmaxm * angdistancem / speedlim, rcp[0] + vmaxp * angdistancep / speedlim)))
         for r in rightrange:
             thisnode = thisnode + 1
             nodesinpreviouslevel = nodesinpreviouslevel + 1
             # First I have to make sure to add the beamlets that I am interested in
-            if(l + 1 <= r -1): # prints r numbers starting from l + 1. So range(3,4) = 3
+            if(l + 1 < r ): # prints r numbers starting from l + 1. So range(3,4) = 3
                 # Dose = -sum( D[[i for i in range(l+1, r)],:] * data.voxelgradient)
-                Dose = -beamGrad[l+1:r].sum()
-                weight = C * ( C2 * (r - l) - C3 * b * (r - l)) - Dose + 10E-10 * (r-l) # The last term in order to prefer apertures opening in the center
+                possiblebeamletsthisrow = np.intersect1d(range(l+1,r), validbeamlets)
+                if (len(possiblebeamletsthisrow) > 0):
+                    Dose = -beamGrad[ possiblebeamletsthisrow ].sum()
+                    weight = C * ( C2 * (r - l) - C3 * b * (r - l)) - Dose + 10E-10 * (r-l) # The last term in order to prefer apertures opening in the center
+                else:
+                    weight = 0.0
             else:
                 weight = 0.0
             # Create node (1,l,r) in array of existing nodes and update the counter
@@ -555,26 +559,31 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         nodesinpreviouslevel = 0
         lmlimit = leftmostleaf
         # And now process normally checking against valid beamlets
-        leftrange = np.intersect1d(range(math.ceil(max(-1, lcm[m] - vmaxm * angdistancem/speedlim, lcp[m] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N - 1, lcm[m] + vmaxm * angdistancem / speedlim, lcp[m] + vmaxp * angdistancep / speedlim))), validbeamletspecialrange)
+        leftrange = range(math.ceil(max(-1, lcm[m] - vmaxm * angdistancem/speedlim, lcp[m] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N - 1, lcm[m] + vmaxm * angdistancem / speedlim, lcp[m] + vmaxp * angdistancep / speedlim)))
         for l in leftrange:
-            rightrange = np.intersect1d(range(math.ceil(max(l + 1, rcm[m] - vmaxm * angdistancem/speedlim, rcp[m] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N, rcm[m] + vmaxm * angdistancem / speedlim, rcp[m] + vmaxp * angdistancep / speedlim))), validbeamletspecialrange)
+            rightrange = range(math.ceil(max(l + 1, rcm[m] - vmaxm * angdistancem/speedlim, rcp[m] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N, rcm[m] + vmaxm * angdistancem / speedlim, rcp[m] + vmaxp * angdistancep / speedlim)))
             for r in rightrange:
                 nodesinpreviouslevel = nodesinpreviouslevel + 1
                 thisnode = thisnode + 1
                 # Create node (m, l, r) and update the level counter
-                # networkNodes.append([m, l, r, float("inf"), float("inf")])
+
                 lnetwork[thisnode] = l
                 rnetwork[thisnode] = r
                 mnetwork[thisnode] = m
                 wnetwork[thisnode] = np.inf
                 rmlimit = (r - l) + leftmostleaf
-                if(lmlimit + 1 <= rmlimit - 1):
-                    #Dose = - sum(D[[i for i in range(lmlimit + 1, rmlimit)],:] * data.voxelgradient)
-                    Dose = -beamGrad[lmlimit+1:rmlimit].sum()
-                    C3simplifier = C3 * b * (r - l)
+                if(lmlimit + 1 < rmlimit):
+
+                    possiblebeamletsthisrow = np.intersect1d(range(lmlimit + 1, rmlimit), validbeamlets)
+                    if(len(possiblebeamletsthisrow) > 0):
+                        Dose = -beamGrad[possiblebeamletsthisrow].sum()
+                        C3simplifier = C3 * b * (r - l)
+                    else:
+                        Dose = 0.0
+                        C3simplifier = 0.0
                 else:
                     Dose = 0.0
-                    C3simplifier = 0
+                    C3simplifier = 0.0
                 lambdaletter = np.absolute(lnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow] - l) + np.absolute(rnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow] - r) - 2 * np.maximum(0, lnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow] - r) - 2 * np.maximum(0, l - np.absolute(rnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow]))
                 weight = C * (C2 * lambdaletter - C3simplifier) - Dose  + 10E-10 * (r-l) # The last term in order to prefer apertures opening in the center
                 # Add the weights that were just calculated
@@ -582,13 +591,13 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 # Find the minimum and its position in the vector.
                 minloc = np.argmin(newweights)
                 wnetwork[thisnode] = newweights[minloc]
-                dadnetwork[thisnode] = minloc + posBeginningOfRow - oldflag
+                dadnetwork[thisnode] = minloc + posBeginningOfRow - oldflag + 1
 
         posBeginningOfRow = nodesinpreviouslevel + posBeginningOfRow # This is the total number of network nodes
         # Keep the location of the leftmost leaf
-        leftmostleaf = len(validbeamletspecialrange) + leftmostleaf
+        leftmostleaf = len(validbeamlets) + leftmostleaf
     thisnode = thisnode + 1
-    for mynode in (range(posBeginningOfRow - nodesinpreviouslevel, posBeginningOfRow)):
+    for mynode in (range(posBeginningOfRow - nodesinpreviouslevel, posBeginningOfRow + 1)):
         weight = C * ( C2 * (rnetwork[mynode] - lnetwork[mynode] ))
         if(wnetwork[mynode] + weight <= wnetwork[thisnode]):
             wnetwork[thisnode] = wnetwork[mynode] + weight
@@ -622,19 +631,14 @@ def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M):
     # Wilmer. Fix this, this is only going to index 0 for debugging purposes
     print("Choosing one aperture amongst the ones that are available")
     for index in data.notinC:
-        print(data.caligraphicC)
         print("analysing available aperture" , index)
         # Find the succesor and predecessor of this particular element
         try:
             succs = [i for i in data.caligraphicC if i > index]
-            if(len(succs) > 0):
-                print('succs', succs)
         except:
             succs = []
         try:
             predecs = [i for i in data.caligraphicC if i < index]
-            if(len(predecs) > 0):
-                print('predecs', predecs)
         except:
             predecs = []
 

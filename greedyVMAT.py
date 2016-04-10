@@ -455,9 +455,9 @@ def fvalidbeamlets(i, index):
     geolocX = data.xinter[i]
     # Find all possible locations of beamlets in this row according to geographical location
     indys = np.where(geolocX == data.xdirection[index])
-    ys = data.ydirection[index][indys]
-    validbeamlets = np.in1d(data.yinter, ys)
-    validbeamlets = np.array(range(0, len(data.yinter)))[validbeamlets]
+    geolocYs = data.ydirection[index][indys]
+    validbeamletlogic = np.in1d(data.yinter, geolocYs)
+    validbeamlets = np.array(range(0, len(data.yinter)))[validbeamletlogic]
     validbeamletspecialrange = np.append(np.append(min(validbeamlets) - 1, validbeamlets), max(validbeamlets) + 1)
     return(validbeamlets, validbeamletspecialrange)
 
@@ -479,7 +479,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
 
     posBeginningOfRow = 0
     D = Dlist[index]
-
     # vmaxm and vmaxp describe the speeds that are possible for the leaves from the predecessor and to the successor
     vmaxm = vmax
     vmaxp = vmax
@@ -507,10 +506,11 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     validbeamlets, validbeamletspecialrange = fvalidbeamlets(0, index)
     # First handle the calculations for the first row
     beamGrad = D * data.voxelgradient
+    print('what is the shape', beamGrad.shape)
     # Keep the location of the most leaf
-    leftmostleaf = len(validbeamlets) # Position in python position(-1) of the leftmost leaf
+
     nodesinpreviouslevel = 0
-    oldflag = nodesinpreviouslevel
+    oldflag = 0
     posBeginningOfRow = 0
     thisnode = 0
     # Max beamlets per row
@@ -530,9 +530,9 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
             thisnode = thisnode + 1
             nodesinpreviouslevel = nodesinpreviouslevel + 1
             # First I have to make sure to add the beamlets that I am interested in
-            if(l + 1 < r ): # prints r numbers starting from l + 1. So range(3,4) = 3
+            if(l + 1 < r): # prints r numbers starting from l + 1. So range(3,4) = 3
                 # Dose = -sum( D[[i for i in range(l+1, r)],:] * data.voxelgradient)
-                possiblebeamletsthisrow = np.intersect1d(range(l+1,r), validbeamlets)
+                possiblebeamletsthisrow = np.intersect1d(range(l+1,r), validbeamlets) - min(validbeamlets)
                 if (len(possiblebeamletsthisrow) > 0):
                     Dose = -beamGrad[ possiblebeamletsthisrow ].sum()
                     weight = C * ( C2 * (r - l) - C3 * b * (r - l)) - Dose + 10E-10 * (r-l) # The last term in order to prefer apertures opening in the center
@@ -549,15 +549,14 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
             # dadnetwork and mnetwork don't need to be changed here for obvious reasons
 
     posBeginningOfRow = posBeginningOfRow + nodesinpreviouslevel
-    mystart = time.time()
-    
+    leftmostleaf = len(validbeamlets) - 1 # Position in python position(-1) of the leftmost leaf
+
     # Then handle the calculations for the m rows. Nodes that are neither source nor sink.
     for m in range(2,M):
-        # Show time taken per row
+        # Get the beamlets that are valid in this row in particular (all others are still valid but are zero)
         validbeamlets, validbeamletspecialrange = fvalidbeamlets(m-1, index)
         oldflag = nodesinpreviouslevel
         nodesinpreviouslevel = 0
-        lmlimit = leftmostleaf
         # And now process normally checking against valid beamlets
         leftrange = range(math.ceil(max(-1, lcm[m] - vmaxm * angdistancem/speedlim, lcp[m] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N - 1, lcm[m] + vmaxm * angdistancem / speedlim, lcp[m] + vmaxp * angdistancep / speedlim)))
         for l in leftrange:
@@ -566,21 +565,16 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 nodesinpreviouslevel = nodesinpreviouslevel + 1
                 thisnode = thisnode + 1
                 # Create node (m, l, r) and update the level counter
-
                 lnetwork[thisnode] = l
                 rnetwork[thisnode] = r
                 mnetwork[thisnode] = m
                 wnetwork[thisnode] = np.inf
-                rmlimit = (r - l) + leftmostleaf
-                if(lmlimit + 1 < rmlimit):
+                # Select only those beamlets that are possible in between the (l,r) limits.
+                possiblebeamletsthisrow = np.intersect1d(range(l + 1, r), validbeamlets) + leftmostleaf - min(validbeamlets)
 
-                    possiblebeamletsthisrow = np.intersect1d(range(lmlimit + 1, rmlimit), validbeamlets)
-                    if(len(possiblebeamletsthisrow) > 0):
-                        Dose = -beamGrad[possiblebeamletsthisrow].sum()
-                        C3simplifier = C3 * b * (r - l)
-                    else:
-                        Dose = 0.0
-                        C3simplifier = 0.0
+                if(len(possiblebeamletsthisrow) > 0):
+                    Dose = -beamGrad[possiblebeamletsthisrow].sum()
+                    C3simplifier = C3 * b * (r - l)
                 else:
                     Dose = 0.0
                     C3simplifier = 0.0

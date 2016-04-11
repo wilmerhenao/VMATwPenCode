@@ -476,8 +476,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     # N = Number of beamlets per row
     # M = Number of rows in an aperture
     # thisApertureIndex = index location in the set of apertures that I have saved.
-    if 1 == thisApertureIndex:
-        print('debug here')
     posBeginningOfRow = 0
     D = Dlist[thisApertureIndex]
     # vmaxm and vmaxp describe the speeds that are possible for the leaves from the predecessor and to the successor
@@ -552,9 +550,14 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     leftmostleaf = len(validbeamlets) - 1 # Position in python position(-1) of the leftmost leaf
 
     # Then handle the calculations for the m rows. Nodes that are neither source nor sink.
-    for m in range(2,M):
+    for m in range(1,M-1):
+        if (7 == m) & (1 == thisApertureIndex) & (type(predec) is not list) & (type(succ) is not list):
+            print(m)
+#        if (4 == m) & (5 == thisApertureIndex) & (type(predec) is not list):
+#            print(m)
+
         # Get the beamlets that are valid in this row in particular (all others are still valid but are zero)
-        validbeamlets, validbeamletspecialrange = fvalidbeamlets(m-1, thisApertureIndex)
+        validbeamlets, validbeamletspecialrange = fvalidbeamlets(m, thisApertureIndex)
         oldflag = nodesinpreviouslevel
         nodesinpreviouslevel = 0
         # And now process normally checking against valid beamlets
@@ -836,8 +839,9 @@ def updateOpenAperture(i):
         # Find geographical location of the first row.
         validbeamlets, validbeamletspecialrange = fvalidbeamlets(m, i)
         # First index in this row
-        indleft = data.llist[i][m] + 1 + leftlimits
-        indright = data.rlist[i][m] - 1 + leftlimits
+        indleft = data.llist[i][m] + 1 + leftlimits - min(validbeamlets) # I subtract min validbeamlets bec. I want to
+                                                                         # find coordinates in available space
+        indright = data.rlist[i][m] - 1 + leftlimits - min(validbeamlets)
         # Keep the location of the letftmost leaf
         leftlimits = leftlimits + len(validbeamlets)
         if (indleft < indright + 1): # If the leaf opening is not completely close

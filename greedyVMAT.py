@@ -21,9 +21,11 @@ import pylab
 import matplotlib.pyplot as plt
 from itertools import chain
 from numba import jit
+from multiprocessing import Pool
+from functools import partial
 
 rootFolder = '/media/wilmer/datadrive'
-rootFolder = '/home/wilmer/Documents/Troy_BU'
+#rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -281,7 +283,7 @@ print('Masking has been calculated')
 
 gastart = 0 ;
 gaend = 356;
-gastep = 60;
+gastep = 4;
 castart = 0;
 caend = 0;
 castep = 0;
@@ -467,7 +469,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     # angdistancep = $\delta_{cc^+}$
     # vmax = maximum leaf speed
     # speedlim = s
-    # predec = predecesor thisApertureIndex, either an index or an empty list
+    # predec = predecesor index, either an index or an empty list
     # succ = succesor index, either an index or an empty list
     # lcm = vector of left limits in the previous aperture
     # lcp = vector of left limits in the next aperture
@@ -522,8 +524,19 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     dadnetwork = np.zeros(networkNodesNumber, dtype = np.int) # Dad Vector. Where Dad is the combination of (l,r) in previous row
     # Work on the first row perimeter and area values
     leftrange = range(math.ceil(max(-1, lcm[0] - vmaxm * angdistancem/speedlim, lcp[0] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N - 1, lcm[0] + vmaxm * angdistancem / speedlim, lcp[0] + vmaxp * angdistancep / speedlim)))
+    # Check if unfeasible. If it is then assign one value but tell the result to the person running this
+
+    if 0 == len(leftrange):
+        leftrange = range(leftrange.start, leftrange.start+1)
+        print('constraint leftrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met')
+
     for l in leftrange:
+
         rightrange = range(math.ceil(max(l + 1, rcm[0] - vmaxm * angdistancem/speedlim, rcp[0] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N, rcm[0] + vmaxm * angdistancem / speedlim, rcp[0] + vmaxp * angdistancep / speedlim)))
+        if 0 == len(rightrange):
+            rightrange = range(rightrange.start, leftrange.start+1)
+            print('constraint rightrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met')
+
         for r in rightrange:
             thisnode = thisnode + 1
             nodesinpreviouslevel = nodesinpreviouslevel + 1
@@ -551,10 +564,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
 
     # Then handle the calculations for the m rows. Nodes that are neither source nor sink.
     for m in range(1,M-1):
-        if (7 == m) & (1 == thisApertureIndex) & (type(predec) is not list) & (type(succ) is not list):
-            print(m)
-#        if (4 == m) & (5 == thisApertureIndex) & (type(predec) is not list):
-#            print(m)
 
         # Get the beamlets that are valid in this row in particular (all others are still valid but are zero)
         validbeamlets, validbeamletspecialrange = fvalidbeamlets(m, thisApertureIndex)
@@ -562,8 +571,17 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         nodesinpreviouslevel = 0
         # And now process normally checking against valid beamlets
         leftrange = range(math.ceil(max(-1, lcm[m] - vmaxm * angdistancem/speedlim, lcp[m] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N - 1, lcm[m] + vmaxm * angdistancem / speedlim, lcp[m] + vmaxp * angdistancep / speedlim)))
+        # Check if unfeasible. If it is then assign one value but tell the result to the person running this
+        if 0 == len(leftrange):
+            leftrange = range(leftrange.start, leftrange.start+1)
+            print('constraint leftrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met')
+
         for l in leftrange:
             rightrange = range(math.ceil(max(l + 1, rcm[m] - vmaxm * angdistancem/speedlim, rcp[m] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N, rcm[m] + vmaxm * angdistancem / speedlim, rcp[m] + vmaxp * angdistancep / speedlim)))
+            if 0 == len(rightrange):
+                rightrange = range(rightrange.start, leftrange.start+1)
+                print('constraint rightrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met')
+
             for r in rightrange:
                 nodesinpreviouslevel = nodesinpreviouslevel + 1
                 thisnode = thisnode + 1
@@ -614,59 +632,67 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     r.reverse()
     return(p, l, r)
 
-def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M):
-    lall = []
-    rall = []
-    lallret = []
-    rallret = []
-    pstar = float("inf")
-    i = 0
+def parallelizationPricingProblem(i, C, C2, C3, b, vmax, speedlim, N, M):
+    thisApertureIndex = data.notinC[i]
 
+    print("analysing available aperture" , thisApertureIndex)
+    # Find the succesor and predecessor of this particular element
+    try:
+        succs = [i for i in data.caligraphicC if i > thisApertureIndex]
+    except:
+        succs = []
+    try:
+        predecs = [i for i in data.caligraphicC if i < thisApertureIndex]
+    except:
+        predecs = []
+
+    # If there are no predecessors or succesors just return an empty list. If there ARE, then return the indices
+    if 0 == len(succs):
+        succ = []
+        angdistancep = np.inf
+    else:
+        succ = min(succs)
+        angdistancep = (succ - thisApertureIndex) * gastep
+    if 0 == len(predecs):
+        predec = []
+        angdistancem = np.inf
+    else:
+        predec = max(predecs)
+        angdistancem = (thisApertureIndex - predec) * gastep
+
+    # Find Numeric value of previous and next angle.
+    p, l, r = PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, thisApertureIndex)
+    return(p,l,r,thisApertureIndex)
+
+def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M):
+    pstar = np.inf
     bestAperture = None
     # This is just for debugging
     #for thisApertureIndex in data.notinC:
     # Wilmer. Fix this, this is only going to index 0 for debugging purposes
     print("Choosing one aperture amongst the ones that are available")
-    for thisApertureIndex in data.notinC:
-        print("analysing available aperture" , thisApertureIndex)
-        # Find the succesor and predecessor of this particular element
-        try:
-            succs = [i for i in data.caligraphicC if i > thisApertureIndex]
-        except:
-            succs = []
-        try:
-            predecs = [i for i in data.caligraphicC if i < thisApertureIndex]
-        except:
-            predecs = []
+    # Allocate empty list with enough size for all l, r combinations
+    global lall
+    global rall
+    global pall
+    lall = [None] * len(data.notinC)
+    rall = [None] * len(data.notinC)
+    pall = np.array([None] * len(data.notinC))
 
-        # If there are no predecessors or succesors just return an empty list. If there ARE, then return the indices
-        if 0 == len(succs):
-            succ = []
-            angdistancep = np.inf
-        else:
-            succ = min(succs)
-            angdistancep = (succ - thisApertureIndex) * gastep
-        if 0 == len(predecs):
-            predec = []
-            angdistancem = np.inf
-        else:
-            predec = max(predecs)
-            angdistancem = (thisApertureIndex - predec) * gastep
+    partialparsubpp = partial(parallelizationPricingProblem, C=C, C2=C2, C3=C3, b=b, vmax=vmax, speedlim=speedlim, N=N, M=M)
+    if __name__ == '__main__':
+        pool = Pool(processes=6)              # process per core
+        respool = pool.map(partialparsubpp, range(0, len(data.notinC)))
 
-        #Find Numeric value of previous and next angle.
-
-        p, l, r = PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, thisApertureIndex)
-        lall.append(l)
-        rall.append(r)
-        # The next "if" will be entered at least once.
-        if p < pstar:
-            bestAperture = thisApertureIndex
-            pstar = p
-            rallret = rall[i]
-            lallret = lall[i]
-
-        i = i + 1
-
+    #for i in range(0, len(data.notinC)):
+    #    partialparsubpp(i)
+    pvalues = np.array([result[0] for result in respool])
+    indstar = np.argmin(pvalues)
+    bestgroup = respool[indstar]
+    pstar = bestgroup[0]
+    lallret = bestgroup[1]
+    rallret = bestgroup[2]
+    bestAperture = bestgroup[3]
     print("Best aperture was: ", bestAperture)
     return(pstar, lallret, rallret, bestAperture)
 
@@ -730,7 +756,7 @@ def printresults(iterationNumber, myfolder):
     plt.grid(True)
     plt.xlabel('Dose Gray')
     plt.ylabel('Fractional Volume')
-    plt.title('6 beams iteration: ' + str(iterationNumber))
+    plt.title('Iteration: ' + str(iterationNumber))
     plt.legend(allNames)
     plt.savefig(myfolder + 'DVH-at-Iteration' + str(iterationNumber) + 'greedyVMAT.png')
     plt.close()
@@ -753,9 +779,8 @@ def colGen(C):
     C3 = 1.0
     angdistancem = 60
     angdistancep = 60
-    vmax = 2.0/60
+    vmax = 2.0 * 1000
     speedlim = 3.0
-
 
     # Assign the most open apertures as initial apertures. They will not have any energy applied to them.
     for i in range(0, data.numbeams):
@@ -773,11 +798,10 @@ def colGen(C):
     pstar = -float("inf")
     plotcounter = 0
     optimalvalues = []
-    while(pstar < 0):
+    while (pstar < 0) & (len(data.notinC) > 0):
         # Step 1 on Fei's paper. Use the information on the current treatment plan to formulate and solve an instance of the PP
         data.calcDose()
         data.calcGradientandObjValue()
-        print('value of C:', C)
         pstar, lm, rm, bestAperture = PricingProblem(C, C2, C3, 0.5, vmax, speedlim, N, M)
         print(pstar)
         with open("/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/whatIhave.txt", "a") as myf:
@@ -803,13 +827,15 @@ def colGen(C):
             rmpres = solveRMC()
             optimalvalues.append(rmpres.fun)
             plotcounter = plotcounter + 1
-            plotAperture(lm, rm, M, N, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/', plotcounter, bestAperture)
-            printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
+            #plotAperture(lm, rm, M, N, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/', plotcounter, bestAperture)
+            #printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
             #notinC and denote the final set of fluence rates by yk
     return(pstar)
 
 def plotAperture(l, r, M, N, myfolder, iterationNumber, bestAperture):
+    if (5 == bestAperture):
+        print('problema con image[i, l[i]:(r[i]-1)] = 1. List index out of range')
     nrows, ncols = M,N
     image = np.zeros(nrows*ncols)
         # Reshape things into a 9x9 grid.
@@ -857,7 +883,10 @@ print('Preparation time took: ' + str(time.time()-start) + ' seconds')
 #for c in [1.0]:
 #for c in range(1, 10):
 before = time.time()
-pstar = colGen(1)
+# This is necessary for multiprocessing. Because if I pass into partial then I can't change
+# (Try to Figure out how to get rid of this)
+
+pstar = colGen(0)
 after = time.time()
 print("The whole process took:" , after - before)
 

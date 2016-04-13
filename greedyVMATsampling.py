@@ -26,6 +26,7 @@ from functools import partial
 
 # Set of apertures starting with 16 that are well spread out.
 kappa = [6, 17, 28, 39, 50, 61, 72, 83, 94, 105, 116, 127, 138, 149, 160, 171, 11, 22, 33, 44, 55, 66, 77, 88, 99, 110, 121, 132, 143, 154, 165, 1, 175, 14, 25, 36, 47, 58, 69, 80, 91, 102, 113, 124, 135, 146, 157, 168, 3, 8, 19, 30, 41, 52, 63, 74, 85, 96, 107, 118, 129, 140, 151, 162, 172, 176, 0, 2, 4, 5, 7, 9, 10, 12, 13, 15, 16, 18, 20, 21, 23, 24, 26, 27, 29, 31, 32, 34, 35, 37, 38, 40, 42, 43, 45, 46, 48, 49, 51, 53, 54, 56, 57, 59, 60, 62, 64, 65, 67, 68, 70, 71, 73, 75, 76, 78, 79, 81, 82, 84, 86, 87, 89, 90, 92, 93, 95, 97, 98, 100, 101, 103, 104, 106, 108, 109, 111, 112, 114, 115, 117, 119, 120, 122, 123, 125, 126, 128, 130, 131, 133, 134, 136, 137, 139, 141, 142, 144, 145, 147, 148, 150, 152, 153, 155, 156, 158, 159, 161, 163, 164, 166, 167, 169, 170, 173, 174, 177]
+WholeCircle = True
 # Other usage:
 # kappa = range(15,178,30) # create initial set of apertures
 # kappa = givemewholelist(kappa, range(0, 178) # Add 1 by 1.
@@ -60,6 +61,39 @@ class region:
         self.fullIndices = ifullindi
         self.target = itarget
 
+class apertureList:
+    # The list is always sorted
+    loc = []
+    angle = []
+    # Insert a new angle in the list of angles to analyse
+    def insertAngle(self, i, aperangle):
+        # Gets angle information and inserts location and angle
+        self.angle.append(aperangle)
+        self.loc.append(i)
+        # Sort the angle list
+        self.loc.sort()
+        self.angle.sort()
+    def removeIndex(self, index):
+        toremove = [i for i,x in enumerate(self.loc) if x == index]
+        self.loc.pop(toremove[0])
+        self.angle.pop(toremove[0])
+    def removeAngle(self, tangl):
+        toremove = [i for i,x in enumerate(self.angle) if x == tangl]
+        self.loc.pop(toremove[0])
+        self.angle.pop(toremove[0])
+    def __call__(self, index):
+        # Returns the angle at the ith location given by the index
+        # First: Find the location of that index in the series of loc
+        toreturn = [i for i,x in enumerate(self.loc) if x == index]
+        return(self.angle[toreturn])
+    def len(self):
+        return(len(self.loc))
+    def isEmpty(self):
+        if 0 == len(self.loc):
+            return(True)
+        else:
+            return(False)
+
 class vmat_class:
     # constants particular to the problem
     numX = 0 # num beamlets
@@ -86,8 +120,8 @@ class vmat_class:
     algOptions = [] # vector of data input for algorithm options
     functionData = []
     voxelAssignment = []
-    notinC = [] # List of apertures not yet selected
-    caligraphicC = [] # List of apertures already selected
+    notinC = apertureList() # List of apertures not yet selected
+    caligraphicC = apertureList() # List of apertures already selected
 
     # varios folders
     outputDirectory = ""# given by the user in the first lines of *.py
@@ -97,7 +131,6 @@ class vmat_class:
     currentDose = np.empty(1) # dose variable
     currentIntensities = np.empty(1)
 
-    caligraphicC = []
     # this is the intersection of all beamlets that I am dealing with
     xinter = []
     yinter = []
@@ -113,14 +146,14 @@ class vmat_class:
     openApertureMaps = []
     diagmakers = []
     dZdK = 0.0
-
+    pointtoAngle = range(0, 178, gastep)
     # data class function
     def calcDose(self):
         self.currentDose = np.zeros(self.numvoxels, dtype = float)
         # dZdK will have a dimension that is numvoxels x numbeams
         self.dZdK = np.matrix(np.zeros((self.numvoxels, self.numbeams)))
-        if len(self.caligraphicC) != 0:
-            for i in self.caligraphicC:
+        if self.caligraphicC.len() != 0:
+            for i in self.caligraphicC.loc:
                 self.currentDose += DlistT[i][:,self.openApertureMaps[i]] * np.repeat(self.currentIntensities[i], len(self.openApertureMaps[i]), axis = 0)
                 self.dZdK[:,i] = (DlistT[i] * sparse.diags(self.diagmakers[i], 0)).sum(axis=1)
 
@@ -289,10 +322,11 @@ print('Masking has been calculated')
 
 gastart = 0 ;
 gaend = 356;
-gastep = 4;
-castart = 0;
-caend = 0;
-castep = 0;
+if WholeCircle:
+    gastep = 2;
+else:
+    gastep = 4;
+    data.pointtoAngle = range(gastart, gaend, gastep)
 ga=[];
 ca=[];
 
@@ -639,16 +673,17 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     return(p, l, r)
 
 def parallelizationPricingProblem(i, C, C2, C3, b, vmax, speedlim, N, M):
-    thisApertureIndex = data.notinC[i]
+    thisApertureIndex = i
 
     print("analysing available aperture" , thisApertureIndex)
     # Find the succesor and predecessor of this particular element
     try:
-        succs = [i for i in data.caligraphicC if i > thisApertureIndex]
+        #This could be done with angles instead of indices (reconsider this at some point)
+        succs = [i for i in data.caligraphicC.loc if i > thisApertureIndex]
     except:
         succs = []
     try:
-        predecs = [i for i in data.caligraphicC if i < thisApertureIndex]
+        predecs = [i for i in data.caligraphicC.loc if i < thisApertureIndex]
     except:
         predecs = []
 
@@ -658,13 +693,13 @@ def parallelizationPricingProblem(i, C, C2, C3, b, vmax, speedlim, N, M):
         angdistancep = np.inf
     else:
         succ = min(succs)
-        angdistancep = (succ - thisApertureIndex) * gastep
+        angdistancep = data.caligraphicC(succ) - data.notinC(thisApertureIndex)
     if 0 == len(predecs):
         predec = []
         angdistancem = np.inf
     else:
         predec = max(predecs)
-        angdistancem = (thisApertureIndex - predec) * gastep
+        angdistancem = data.notinC(thisApertureIndex) - data.caligraphicC(predec)
 
     # Find Numeric value of previous and next angle.
     p, l, r = PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, thisApertureIndex)
@@ -673,39 +708,34 @@ def parallelizationPricingProblem(i, C, C2, C3, b, vmax, speedlim, N, M):
 def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M):
     pstar = np.inf
     bestAperture = None
-    # This is just for debugging
-    #for thisApertureIndex in data.notinC:
-    # Wilmer. Fix this, this is only going to index 0 for debugging purposes
     print("Choosing one aperture amongst the ones that are available")
     # Allocate empty list with enough size for all l, r combinations
     global lall
     global rall
     global pall
-    lall = [None] * len(data.notinC)
-    rall = [None] * len(data.notinC)
-    pall = np.array([None] * len(data.notinC))
+    lall = [None] * data.notinC.len()
+    rall = [None] * data.notinC.len()
+    pall = np.array([None] * data.notinC.len())
 
     partialparsubpp = partial(parallelizationPricingProblem, C=C, C2=C2, C3=C3, b=b, vmax=vmax, speedlim=speedlim, N=N, M=M)
     if __name__ == '__main__':
         pool = Pool(processes=4)              # process per MP
-        respool = pool.map(partialparsubpp, range(0, len(data.notinC)))
+        respool = pool.map(partialparsubpp, data.notinC.loc)
 
-    #for i in range(0, len(data.notinC)):
-    #    partialparsubpp(i)
     pvalues = np.array([result[0] for result in respool])
     indstar = np.argmin(pvalues)
     bestgroup = respool[indstar]
     pstar = bestgroup[0]
     lallret = bestgroup[1]
     rallret = bestgroup[2]
-    bestAperture = bestgroup[3]
-    print("Best aperture was: ", bestAperture)
-    return(pstar, lallret, rallret, bestAperture)
+    bestApertureIndex = bestgroup[3]
+    print("Best aperture was: ", bestApertureIndex)
+    return(pstar, lallret, rallret, bestApertureIndex)
 
 def solveRMC():
     ## IPOPT SOLUTION
     start = time.time()
-    numbe = len(data.caligraphicC)
+    numbe = data.caligraphicC.len()
     nvar = numbe
     xl = np.zeros(numbe)
     xu = 2e19*np.ones(numbe)
@@ -721,10 +751,10 @@ def solveRMC():
     # Create the boundaries making sure that the only free variables are the ones with perfectly defined apertures.
     boundschoice = []
     for thisindex in range(0, data.numbeams):
-        if thisindex in data.notinC:
-            boundschoice.append((0, 0))
-        else:
+        if thisindex in data.caligraphicC.loc: #Only activate what is an aperture
             boundschoice.append((0, None))
+        else:
+            boundschoice.append((0, 0))
     res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds = boundschoice, options={'ftol':1e-2, 'disp':5,'maxiter':15})
 
     print('Restricted Master Problem solved in ' + str(time.time() - start) + ' seconds')
@@ -798,36 +828,35 @@ def colGen(C, WholeCircle, initialApertures):
     data.calcDose()
 
     # At the beginning no apertures are selected, and those who are not selected are all in notinC
-    data.caligraphicC = []
     if WholeCircle:
-        data.notinC = kappa.pop(range(0,initialApertures))
+        for i in kappa[range(0,initialApertures)]:
+            data.notinC.insertAngle(i, data.pointtoAngle[i])
+            kappa.pop(0)
         print('apertures initial', data.notinC)
     else:
-        data.notinC = [i for i in range(0, len(Dlist))]
-
-    pstar = -float("inf")
+        for i in range(0, len(Dlist)):
+            data.notinC.insertAngle(i, data.pointtoAngle[i])
+    pstar = -np.inf
     plotcounter = 0
     optimalvalues = []
-    while (pstar < 0) & (len(data.notinC) > 0):
+    while (pstar < 0) & (data.notinC.len() > 0):
         # Step 1 on Fei's paper. Use the information on the current treatment plan to formulate and solve an instance of the PP
         data.calcDose()
         data.calcGradientandObjValue()
-        pstar, lm, rm, bestAperture = PricingProblem(C, C2, C3, 0.5, vmax, speedlim, N, M)
+        pstar, lm, rm, bestApertureIndex = PricingProblem(C, C2, C3, 0.5, vmax, speedlim, N, M)
         # Step 2. If the optimal value of the PP is nonnegative**, go to step 5. Otherwise, denote the optimal solution to the
         # PP by c and Ac and replace caligraphic C and A = Abar, k \in caligraphicC
         if pstar >= 0:
             #This choice includes the case when no aperture was selected
             break
         else:
-            data.caligraphicC.append(bestAperture)
-            data.caligraphicC.sort()
-            data.notinC.remove(bestAperture)
-            data.notinC.sort()
+            data.caligraphicC.insertAngle(bestApertureIndex, data.notinC(bestApertureIndex))
+            data.notinC.removeIndex(bestApertureIndex)
             # Solve the instance of the RMP associated with caligraphicC and Ak = A_k^bar, k \in
-            data.llist[bestAperture] = lm
-            data.rlist[bestAperture] = rm
+            data.llist[bestApertureIndex] = lm
+            data.rlist[bestApertureIndex] = rm
             # Precalculate the aperture map to save times.
-            data.openApertureMaps[bestAperture], data.diagmakers[bestAperture] = updateOpenAperture(bestAperture)
+            data.openApertureMaps[bestApertureIndex], data.diagmakers[bestApertureIndex] = updateOpenAperture(bestApertureIndex)
             rmpres = solveRMC()
             optimalvalues.append(rmpres.fun)
             plotcounter = plotcounter + 1
@@ -891,7 +920,7 @@ before = time.time()
 # This is necessary for multiprocessing. Because if I pass into partial then I can't change
 # (Try to Figure out how to get rid of this)
 
-pstar = colGen(0, True, 16)
+pstar = colGen(0, WholeCircle, 16)
 after = time.time()
 print("The whole process took:" , after - before)
 

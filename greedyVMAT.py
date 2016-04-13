@@ -681,7 +681,7 @@ def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M):
 
     partialparsubpp = partial(parallelizationPricingProblem, C=C, C2=C2, C3=C3, b=b, vmax=vmax, speedlim=speedlim, N=N, M=M)
     if __name__ == '__main__':
-        pool = Pool(processes=6)              # process per core
+        pool = Pool(processes=4)              # process per MP
         respool = pool.map(partialparsubpp, range(0, len(data.notinC)))
 
     #for i in range(0, len(data.notinC)):
@@ -885,6 +885,10 @@ print('Preparation time took: ' + str(time.time()-start) + ' seconds')
 before = time.time()
 # This is necessary for multiprocessing. Because if I pass into partial then I can't change
 # (Try to Figure out how to get rid of this)
+
+# Set of apertures starting with 16 that are well spread out.
+kappa = [6, 17, 28, 39, 50, 61, 72, 83, 94, 105, 116, 127, 138, 149, 160, 171, 11, 22, 33, 44, 55, 66, 77, 88, 99, 110, 121, 132, 143, 154, 165, 1, 175, 14, 25, 36, 47, 58, 69, 80, 91, 102, 113, 124, 135, 146, 157, 168, 3, 8, 19, 30, 41, 52, 63, 74, 85, 96, 107, 118, 129, 140, 151, 162, 172, 176, 0, 2, 4, 5, 7, 9, 10, 12, 13, 15, 16, 18, 20, 21, 23, 24, 26, 27, 29, 31, 32, 34, 35, 37, 38, 40, 42, 43, 45, 46, 48, 49, 51, 53, 54, 56, 57, 59, 60, 62, 64, 65, 67, 68, 70, 71, 73, 75, 76, 78, 79, 81, 82, 84, 86, 87, 89, 90, 92, 93, 95, 97, 98, 100, 101, 103, 104, 106, 108, 109, 111, 112, 114, 115, 117, 119, 120, 122, 123, 125, 126, 128, 130, 131, 133, 134, 136, 137, 139, 141, 142, 144, 145, 147, 148, 150, 152, 153, 155, 156, 158, 159, 161, 163, 164, 166, 167, 169, 170, 173, 174, 177]
+
 
 pstar = colGen(0)
 after = time.time()

@@ -290,9 +290,6 @@ print('Masking has been calculated')
 gastart = 0 ;
 gaend = 356;
 gastep = 4;
-castart = 0;
-caend = 0;
-castep = 0;
 ga=[];
 ca=[];
 

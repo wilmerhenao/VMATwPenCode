@@ -63,9 +63,10 @@ class region:
 
 class apertureList:
     # The list is always sorted
-    loc = []
-    angle = []
     # Insert a new angle in the list of angles to analyse
+    def __init__(self):
+        self.loc = []
+        self.angle = []
     def insertAngle(self, i, aperangle):
         # Gets angle information and inserts location and angle
         self.angle.append(aperangle)
@@ -85,7 +86,7 @@ class apertureList:
         # Returns the angle at the ith location given by the index
         # First: Find the location of that index in the series of loc
         toreturn = [i for i,x in enumerate(self.loc) if x == index]
-        return(self.angle[toreturn])
+        return(self.angle[toreturn[0]])
     def len(self):
         return(len(self.loc))
     def isEmpty(self):
@@ -146,7 +147,8 @@ class vmat_class:
     openApertureMaps = []
     diagmakers = []
     dZdK = 0.0
-    pointtoAngle = range(0, 178, gastep)
+    pointtoAngle = []
+    Dlist = []
     # data class function
     def calcDose(self):
         self.currentDose = np.zeros(self.numvoxels, dtype = float)
@@ -292,7 +294,6 @@ for i in range(0, numStructs):
     # structure
     maskValueFull[originalVoxels[Vorg[s]].astype(int)] = maskValueFull[originalVoxels[Vorg[s]].astype(int)]+2**(s)
     maskValueSingle[originalVoxels[Vorg[s]].astype(int)] = 2**(s)
-    # print('s: ' + str(s) + ', mValue:' + str(maskValueFull[111001]))
 
 print('masking value single from ' + str(min(maskValueSingle)) + ' to ' + str(max(maskValueSingle)))
 
@@ -319,14 +320,13 @@ data.maskValue = maskValueSingle
 data.fullMaskValue = maskValueFull
 print('Masking has been calculated')
 
-
 gastart = 0 ;
 gaend = 356;
 if WholeCircle:
     gastep = 2;
 else:
-    gastep = 4;
-    data.pointtoAngle = range(gastart, gaend, gastep)
+    gastep = 60;
+data.pointtoAngle = range(gastart, gaend, gastep)
 ga=[];
 ca=[];
 
@@ -397,9 +397,9 @@ data.Dmat = sparse.csr_matrix((data.numX, data.numvoxels), dtype=float)
 
 # Work with the D matrices for each beam angle
 overallDijsCounter = 0
-Dlist = []
-DlistT = []
-for i in range(0, data.numbeams):
+data.Dlist = [None] * data.numbeams
+DlistT = [None] * data.numbeams
+def readDmatrix(i):
     fname = 'Gantry' + str(ga[i]) + '_Couch' + str(0) + '_D.mat'
     print('Processing matrix from gantry & couch angle: ' + fname)
     # extract voxel, beamlet indices and dose values
@@ -407,18 +407,24 @@ for i in range(0, data.numbeams):
     # write out bixel sorted binary file
     [b,j,d] = sparse.find(D)
     newb = originalVoxels[b]
-
     # write out voxel sorted binary file
     [jt,bt,dt] = sparse.find(D.transpose())
     newbt = originalVoxels[bt]
     Dlittle = sparse.csr_matrix((dt, (jt, newbt)), shape = (data.numX, data.numvoxels), dtype=float)
     # For each matrix D, store its values in a list
-    Dlist.append(Dlittle)
-    DlistT.append(1)
+    return(i, Dlittle)
+
+# Read the data in parallel
+if __name__ == '__main__':
+    pool = Pool(processes=8)              # process per MP
+    Allmats = pool.map(readDmatrix, range(0, data.numbeams))
+
+# Assign data
+for objResult in Allmats:
+    print('assign' + str(objResult[0]) + 'in memory')
+    data.Dlist[objResult[0]] = objResult[1]
 
 print('Finished reading D matrices')
-
-### Here I begin the matrix cut
 
 for i in range(0, data.numbeams):
     # ininter will contain the beamlet directions that belong in the intersection of all apertures
@@ -430,9 +436,9 @@ for i in range(0, data.numbeams):
     # Once I have ininter I will cut all the elements that are
     data.xdirection[i] = data.xdirection[i][ininter]
     data.ydirection[i] = data.ydirection[i][ininter]
-
-    Dlist[i] = Dlist[i][ininter,:]
-    DlistT[i] = Dlist[i].transpose()
+    print(type(data.Dlist[i]))
+    data.Dlist[i] = data.Dlist[i][ininter,:]
+    DlistT[i] = data.Dlist[i].transpose()
     data.beamletsPerBeam[i] = len(ininter)
     beamletCounter[i+1] = beamletCounter[i] + data.beamletsPerBeam[i]
 
@@ -519,7 +525,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     # M = Number of rows in an aperture
     # thisApertureIndex = index location in the set of apertures that I have saved.
     posBeginningOfRow = 0
-    D = Dlist[thisApertureIndex]
+    D = data.Dlist[thisApertureIndex]
     # vmaxm and vmaxp describe the speeds that are possible for the leaves from the predecessor and to the successor
     vmaxm = vmax
     vmaxp = vmax
@@ -719,7 +725,7 @@ def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M):
 
     partialparsubpp = partial(parallelizationPricingProblem, C=C, C2=C2, C3=C3, b=b, vmax=vmax, speedlim=speedlim, N=N, M=M)
     if __name__ == '__main__':
-        pool = Pool(processes=4)              # process per MP
+        pool = Pool(processes=6)              # process per MP
         respool = pool.map(partialparsubpp, data.notinC.loc)
 
     pvalues = np.array([result[0] for result in respool])
@@ -825,17 +831,18 @@ def colGen(C, WholeCircle, initialApertures):
 
     #Step 0 on Fei's paper. Set C = empty and zbar = 0. The gradient of numbeams dimensions generated here will not
     # be used, and therefore is nothing to worry about.
-    data.calcDose()
-
     # At the beginning no apertures are selected, and those who are not selected are all in notinC
     if WholeCircle:
-        for i in kappa[range(0,initialApertures)]:
+        for j in range(0,initialApertures):
+            i = kappa[j]
             data.notinC.insertAngle(i, data.pointtoAngle[i])
             kappa.pop(0)
+        data.caligraphicC = apertureList()
         print('apertures initial', data.notinC)
     else:
-        for i in range(0, len(Dlist)):
+        for i in range(0, len(data.Dlist)):
             data.notinC.insertAngle(i, data.pointtoAngle[i])
+        data.caligraphicC = apertureList()
     pstar = -np.inf
     plotcounter = 0
     optimalvalues = []
@@ -860,6 +867,10 @@ def colGen(C, WholeCircle, initialApertures):
             rmpres = solveRMC()
             optimalvalues.append(rmpres.fun)
             plotcounter = plotcounter + 1
+            # Add the next member from kappa to the notinC list
+            if(len(kappa) > 0):
+                data.notinC.insertAngle(kappa[0], data.pointtoAngle[kapa[0]])
+                kappa.pop(0)
             #plotAperture(lm, rm, M, N, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/', plotcounter, bestAperture)
             #printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
@@ -908,7 +919,7 @@ def updateOpenAperture(i):
             for thisbeamlet in range(indleft, indright + 1):
                 openaperture.append(thisbeamlet)
     openaperturenp = np.array(openaperture, dtype=int)
-    diagmaker = np.zeros(Dlist[i].shape[0], dtype = float)
+    diagmaker = np.zeros(data.Dlist[i].shape[0], dtype = float)
     diagmaker[[ij for ij in openaperturenp]] = 1.0
     return(openaperturenp, diagmaker)
 

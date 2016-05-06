@@ -23,13 +23,11 @@ from itertools import chain
 from numba import jit
 from multiprocessing import Pool
 from functools import partial
+import random
 
 # Set of apertures starting with 16 that are well spread out.
 kappa = [6, 17, 28, 39, 50, 61, 72, 83, 94, 105, 116, 127, 138, 149, 160, 171, 11, 22, 33, 44, 55, 66, 77, 88, 99, 110, 121, 132, 143, 154, 165, 1, 175, 14, 25, 36, 47, 58, 69, 80, 91, 102, 113, 124, 135, 146, 157, 168, 3, 8, 19, 30, 41, 52, 63, 74, 85, 96, 107, 118, 129, 140, 151, 162, 172, 176, 0, 2, 4, 5, 7, 9, 10, 12, 13, 15, 16, 18, 20, 21, 23, 24, 26, 27, 29, 31, 32, 34, 35, 37, 38, 40, 42, 43, 45, 46, 48, 49, 51, 53, 54, 56, 57, 59, 60, 62, 64, 65, 67, 68, 70, 71, 73, 75, 76, 78, 79, 81, 82, 84, 86, 87, 89, 90, 92, 93, 95, 97, 98, 100, 101, 103, 104, 106, 108, 109, 111, 112, 114, 115, 117, 119, 120, 122, 123, 125, 126, 128, 130, 131, 133, 134, 136, 137, 139, 141, 142, 144, 145, 147, 148, 150, 152, 153, 155, 156, 158, 159, 161, 163, 164, 166, 167, 169, 170, 173, 174, 177]
 WholeCircle = True
-# Other usage:
-# kappa = range(15,178,30) # create initial set of apertures
-# kappa = givemewholelist(kappa, range(0, 178) # Add 1 by 1.
 
 rootFolder = '/media/wilmer/datadrive'
 #rootFolder = '/home/wilmer/Documents/Troy_BU'
@@ -64,6 +62,8 @@ class region:
 class apertureList:
     # The list is always sorted
     # Insert a new angle in the list of angles to analyse
+    # loc is the numeric location. It has range 0 to 178 for the HN case. Angle on the other hand is the numeric angle
+    # degrees. It should be sorted in ascending order everytime you add a new element.
     def __init__(self):
         self.loc = []
         self.angle = []
@@ -71,7 +71,7 @@ class apertureList:
         # Gets angle information and inserts location and angle
         self.angle.append(aperangle)
         self.loc.append(i)
-        # Sort the angle list
+        # Sort the angle list in ascending order
         self.loc.sort()
         self.angle.sort()
     def removeIndex(self, index):
@@ -85,6 +85,7 @@ class apertureList:
     def __call__(self, index):
         # Returns the angle at the ith location given by the index
         # First: Find the location of that index in the series of loc
+        # Notice that this function overloads the parenthesis operator for elements of this class.
         toreturn = [i for i,x in enumerate(self.loc) if x == index]
         return(self.angle[toreturn[0]])
     def len(self):
@@ -401,7 +402,7 @@ data.Dlist = [None] * data.numbeams
 DlistT = [None] * data.numbeams
 def readDmatrix(i):
     fname = 'Gantry' + str(ga[i]) + '_Couch' + str(0) + '_D.mat'
-    print('Processing matrix from gantry & couch angle: ' + fname)
+    print('Reading matrix from gantry & couch angle: ' + fname)
     # extract voxel, beamlet indices and dose values
     D = sio.loadmat(fname)['D']
     # write out bixel sorted binary file
@@ -725,8 +726,10 @@ def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M):
 
     partialparsubpp = partial(parallelizationPricingProblem, C=C, C2=C2, C3=C3, b=b, vmax=vmax, speedlim=speedlim, N=N, M=M)
     if __name__ == '__main__':
-        pool = Pool(processes=6)              # process per MP
+        pool = Pool(processes=8)              # process per MP
         respool = pool.map(partialparsubpp, data.notinC.loc)
+    pool.close()
+    pool.join()
 
     pvalues = np.array([result[0] for result in respool])
     indstar = np.argmin(pvalues)
@@ -834,7 +837,7 @@ def colGen(C, WholeCircle, initialApertures):
     # At the beginning no apertures are selected, and those who are not selected are all in notinC
     if WholeCircle:
         for j in range(0,initialApertures):
-            i = kappa[j]
+            i = kappa[0]
             data.notinC.insertAngle(i, data.pointtoAngle[i])
             kappa.pop(0)
         data.caligraphicC = apertureList()
@@ -865,12 +868,31 @@ def colGen(C, WholeCircle, initialApertures):
             # Precalculate the aperture map to save times.
             data.openApertureMaps[bestApertureIndex], data.diagmakers[bestApertureIndex] = updateOpenAperture(bestApertureIndex)
             rmpres = solveRMC()
+
+            #epsilonflag = 0 # If some aperture was removed
+            for thisindex in range(0, data.numbeams):
+                if thisindex in data.caligraphicC.loc: #Only activate what is an aperture
+                    if rmpres.x[thisindex] < 1e-6:
+                        #epsilonflag = 1
+
+                        # Remove from caligraphicC and add to notinC
+                        data.notinC.insertAngle(thisindex, data.pointtoAngle[thisindex])
+                        data.caligraphicC.removeIndex(thisindex)
+
             optimalvalues.append(rmpres.fun)
             plotcounter = plotcounter + 1
-            # Add the next member from kappa to the notinC list
-            if(len(kappa) > 0):
-                data.notinC.insertAngle(kappa[0], data.pointtoAngle[kapa[0]])
-                kappa.pop(0)
+            # Add everything from notinC to kappa
+            while(False == data.notinC.isEmpty()):
+                kappa.append(data.notinC.loc[0])
+                data.notinC.removeIndex(data.notinC.loc[0])
+
+            # Choose a random set of elements in kappa
+            random.seed(13)
+            elemstoinclude = random.sample(kappa, min(initialApertures, len(kappa)))
+            for i in elemstoinclude:
+                data.notinC.insertAngle(i, data.pointtoAngle[i])
+                kappa.remove(i)
+
             #plotAperture(lm, rm, M, N, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/', plotcounter, bestAperture)
             #printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c

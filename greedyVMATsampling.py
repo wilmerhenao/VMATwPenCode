@@ -10,7 +10,6 @@ except ImportError:
     print("Running with normal backends")
 
 import glob, os
-#import pyipopt
 import numpy as np
 import scipy.io as sio
 from scipy import sparse
@@ -61,60 +60,83 @@ class region:
         self.fullIndices = ifullindi
         self.target = itarget
 
+## apertureList is a class definition of locs and angles that is always sorted.
+# Its attributes are loc which is the numeric location; It has range 0 to 178 for
+# the HN case; Angle is the numeric angle in degrees; It ranges from 0 to 358 degrees
+# apertureList should be sorted in ascending order everytime you add a new element; User CAN make this safe assumption
 class apertureList:
-    # The list is always sorted
-    # Insert a new angle in the list of angles to analyse
-    # loc is the numeric location. It has range 0 to 178 for the HN case. Angle on the other hand is the numeric angle
-    # degrees. It should be sorted in ascending order everytime you add a new element.
+    ## constructor initializes empty lists
     def __init__(self):
+        ## Location in index range(0,numbeams)
         self.loc = []
+        ## Angles ranges from 0 to 360
         self.angle = []
+    ## Insert a new angle in the list of angles to analyse.
+    # Gets angle information and inserts location and angle
+    # In the end it sorts the list in increasing order
     def insertAngle(self, i, aperangle):
-        # Gets angle information and inserts location and angle
         self.angle.append(aperangle)
         self.loc.append(i)
         # Sort the angle list in ascending order
         self.loc.sort()
         self.angle.sort()
+    ## Removes the index and its corresponding angle from the list.
+    # Notice that it only removes the first occurrence; but if you have done everything correctly this should never
+    # be a problem
     def removeIndex(self, index):
         toremove = [i for i,x in enumerate(self.loc) if x == index]
-        self.loc.pop(toremove[0])
+        self.loc.pop(toremove[0]) # Notice that it removes the first entry
         self.angle.pop(toremove[0])
+    ## Looks for the angle and removes the index and the angle corresponding to it from the list
     def removeAngle(self, tangl):
         toremove = [i for i,x in enumerate(self.angle) if x == tangl]
         self.loc.pop(toremove[0])
         self.angle.pop(toremove[0])
+    ## Overloads parenthesis operator in order to fetch the ANGLE given an index.
+    # Returns the angle at the ith location given by the index.
+    # First Find the location of that index in the series of loc
+    # Notice that this function overloads the parenthesis operator for elements of this class.
     def __call__(self, index):
-        # Returns the angle at the ith location given by the index
-        # First: Find the location of that index in the series of loc
-        # Notice that this function overloads the parenthesis operator for elements of this class.
         toreturn = [i for i,x in enumerate(self.loc) if x == index]
         return(self.angle[toreturn[0]])
+    ## Returns the length of this instantiation without the need to pass parameters.
     def len(self):
         return(len(self.loc))
+    ## Returns True if the list is empty; otherwise returns False.
     def isEmpty(self):
         if 0 == len(self.loc):
             return(True)
         else:
             return(False)
 
+## This defines the global VMAT class that contains most of the VMAT data to be used in the implementation
+# Most of the values were defined as static attributes and only one instantiation at a time is possible. But this should not
+# be a problem. The file also contains functions to be used when you call the optimizer.
 class vmat_class:
-    # constants particular to the problem
-    numX = 0 # num beamlets
-    numvoxels = int() #num voxels (small voxel space)
-    numstructs = 0 # num of structures/regions
-    numoars = 0 # num of organs at risk
-    numtargets = 0 # num of targets
-    numbeams = 0 # num of beams
-    totaldijs = 0 # num of nonzeros in Dij matrix
-    nnz_jac_g = 0
+    ## number of beamlets
+    numX = 0
+    ## number of voxels in the small voxel space
+    numvoxels = int()
+    ## number of structures/regions
+    numstructs = 0
+    ## number of organs at risk
+    numoars = 0
+    ## num of targets
+    numtargets = 0
+    ## num of beams
+    numbeams = 0
+    ## num of nonzeros in Dij matrix
+    totaldijs = 0
+    ## objectiveValue of the final function
     objectiveValue = float("inf")
-
-    # vectors
-    beamletsPerBeam = [] # number of beamlets per beam
-    dijsPerBeam = [] # number of nonzeroes in Dij per beam
-    maskValue = [] #non-overlapping mask value per voxel
-    fullMaskValue = [] # complete mask value per voxel
+    ## number of beamlets per beam
+    beamletsPerBeam = []
+    ## number of nonzeroes in Dij per beam
+    dijsPerBeam = []
+    ## non-overlapping mask value per voxel
+    maskValue = []
+    ## complete mask value per voxel ( A voxel may cover more than one structure = OAR's + T's)
+    fullMaskValue = []
     regionIndices = [] # index values of structures in region list (should be 0,1,etc)
     targets = [] # region indices of structures (from region vector)
     oars = [] # region indices of oars

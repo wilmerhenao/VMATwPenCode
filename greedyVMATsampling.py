@@ -137,16 +137,24 @@ class vmat_class:
     maskValue = []
     ## complete mask value per voxel ( A voxel may cover more than one structure = OAR's + T's)
     fullMaskValue = []
-    regionIndices = [] # index values of structures in region list (should be 0,1,etc)
-    targets = [] # region indices of structures (from region vector)
-    oars = [] # region indices of oars
-    regions = [] # vector of regions (holds structure information)
-    objectiveInputFiles = [] # vector of data input files for objectives
-    constraintInputFiles = [] # vector of data input files for constraints
-    algOptions = [] # vector of data input for algorithm options
+    ## index values of structures in region list (should be 0,1,etc)
+    regionIndices = []
+    ## region indices of target structures (from region vector)
+    targets = []
+    ## region indices of oars
+    oars = []
+    ## vector of regions (holds structure information)
+    regions = []
+    ## vector of data input files for objectives
+    objectiveInputFiles = []
+    ## vector of data input files for constraints
+    constraintInputFiles = []
+    ## vector of data input for algorithm options
+    algOptions = []
     functionData = []
     voxelAssignment = []
-    notinC = apertureList() # List of apertures not yet selected
+    ## List of apertures not yet selected
+    notinC = apertureList()
     caligraphicC = apertureList() # List of apertures already selected
 
     # varios folders

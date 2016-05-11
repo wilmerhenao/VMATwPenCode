@@ -44,6 +44,7 @@ mm3voxels = rootFolder + '/Data/DataProject/HN/hn3mmvoxels.mat'
 priority = [7, 24, 25, 23, 22, 21, 20, 16, 15, 14, 13, 12, 10, 11, 9, 4, 3, 1, 2, 17, 18, 19, 5, 6, 8]
 priority = (np.array(priority)-1).tolist()
 mylines = [line.rstrip('\n') for line in open('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/beamAngles.txt')]
+fig = plt.figure(1)
 
 class region:
     """ Contains all information relevant to a particular region"""
@@ -609,8 +610,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     posBeginningOfRow = posBeginningOfRow + nodesinpreviouslevel
     leftmostleaf = len(validbeamlets) - 1 # Position in python position(-1) of the leftmost leaf
     # Then handle the calculations for the m rows. Nodes that are neither source nor sink.
-    if (29 == thisApertureIndex):
-        print('level M = ', 0, ' and thisnode = ', thisnode)
     for m in range(1,M):
         # Get the beamlets that are valid in this row in particular (all others are still valid but are zero)
         validbeamlets, validbeamletspecialrange = fvalidbeamlets(m, thisApertureIndex)
@@ -673,8 +672,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     l = []
     r = []
     while(1):
-        if (29 == thisApertureIndex):
-            print('thenode = ', thenode)
         # Find the predecessor data
         l.append(lnetwork[thenode])
         r.append(rnetwork[thenode])
@@ -685,10 +682,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     r.reverse()
     #Pop the last elements because this is the direction of nonexistent sink field
     l.pop(); r.pop()
-    if (29 == thisApertureIndex):
-        print('limits are:', l, r)
-    if (28 != len(l)):
-        print("dimension different to 28. Instead I got:", len(l), ". the troublemaker is:", thisApertureIndex)
     return(p, l, r)
 
 def parallelizationPricingProblem(i, C, C2, C3, b, vmax, speedlim, N, M):
@@ -751,8 +744,7 @@ def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M):
     rallret = bestgroup[2]
     bestApertureIndex = bestgroup[3]
     for i in range(0, len(respool)):
-        print("check all lengths:", len(respool[i][1]),len(respool[i][2]))
-        if(28 != len(respool[i][1])):
+        if(M != len(respool[i][1])):
             sys.exit("Length of left vector is less than 28")
 
     print("Best aperture was: ", bestApertureIndex)
@@ -841,7 +833,7 @@ def colGen(C, WholeCircle, initialApertures):
     # User defined data
     C2 = 1.0
     C3 = 1.0
-    vmax = 2.0 * 10
+    vmax = 2.0 * 100
     speedlim = 3.0
 
     # Assign the most open apertures as initial apertures. They will not have any energy applied to them.
@@ -854,6 +846,7 @@ def colGen(C, WholeCircle, initialApertures):
     # At the beginning no apertures are selected, and those who are not selected are all in notinC
     if WholeCircle:
         random.seed(13)
+        global kappa
         kappa = random.sample(kappa, len(kappa))
         for j in range(0,initialApertures):
             i = kappa[0]
@@ -882,7 +875,6 @@ def colGen(C, WholeCircle, initialApertures):
         data.calcDose()
         data.calcGradientandObjValue()
         pstar, lm, rm, bestApertureIndex = PricingProblem(C, C2, C3, 0.5, vmax, speedlim, N, M)
-        print("lengthlmrm:", len(lm), len(rm))
         # Step 2. If the optimal value of the PP is nonnegative**, go to step 5. Otherwise, denote the optimal solution to the
         # PP by c and Ac and replace caligraphic C and A = Abar, k \in caligraphicC
         if pstar >= 0:
@@ -931,25 +923,27 @@ def colGen(C, WholeCircle, initialApertures):
     return(pstar)
 
 def plotAperture(l, r, M, N, myfolder, iterationNumber, bestAperture):
-    if (5 == bestAperture):
-        print('problema con image[i, l[i]:(r[i]-1)] = 1. List index out of range')
+    global fig
     nrows, ncols = M,N
     image = np.zeros(nrows*ncols)
         # Reshape things into a 9x9 grid
     image = image.reshape((nrows, ncols))
-    print('l:', l, 'r:', r)
-    print(len(l), len(r))
     for i in range(0, M):
         if 31 == bestAperture:
             print('l[i]:', l[i], 'r[i]:', r[i])
         image[i, l[i]:(r[i]-1)] = 1
+    # Set up a location where to save the figure
+    xcoor = math.ceil(math.sqrt(data.numbeams))
+    ycoor = math.ceil(math.sqrt(data.numbeams))
+    fig.add_subplot(ycoor,xcoor, bestAperture + 1) # add the plot to add
+
 
     row_labels = range(nrows)
     col_labels = range(ncols)
     plt.matshow(image)
     plt.xticks(range(ncols), col_labels)
     plt.yticks(range(nrows), row_labels)
-    plt.savefig(myfolder + 'Aperture' + str(iterationNumber) + '-at-' + str(bestAperture * gastep) + 'degrees.png')
+    #plt.savefig(myfolder + 'Aperture' + str(iterationNumber) + '-at-' + str(bestAperture * gastep) + 'degrees.png')
     plt.close()
 
 def updateOpenAperture(i):
@@ -990,5 +984,8 @@ after = time.time()
 print("The whole process took:" , after - before)
 
 print('The whole program took: '  + str(time.time()-start) + ' seconds to finish')
+
+# Print all to pdfs
+fig.savefig('~/multiappt.pdf')
 
 print("You have graciously finished running this program")

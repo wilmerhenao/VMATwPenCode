@@ -43,7 +43,6 @@ mm3voxels = rootFolder + '/Data/DataProject/HN/hn3mmvoxels.mat'
 priority = [7, 24, 25, 23, 22, 21, 20, 16, 15, 14, 13, 12, 10, 11, 9, 4, 3, 1, 2, 17, 18, 19, 5, 6, 8]
 priority = (np.array(priority)-1).tolist()
 mylines = [line.rstrip('\n') for line in open('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/beamAngles.txt')]
-fig = plt.figure(1)
 
 class region:
     """ Contains all information relevant to a particular region"""
@@ -151,13 +150,15 @@ class vmat_class:
     constraintInputFiles = []
     ## vector of data input for algorithm options
     algOptions = []
+    ## Holds function data parameters from objectFunctioninput file
     functionData = []
     voxelAssignment = []
     ## List of apertures not yet selected
     notinC = apertureList()
-    caligraphicC = apertureList() # List of apertures already selected
+    ## List of apertures already selected
+    caligraphicC = apertureList()
 
-    # varios folders
+    ## varios folders
     outputDirectory = ""# given by the user in the first lines of *.py
     dataDirectory = ""
 
@@ -165,24 +166,39 @@ class vmat_class:
     currentDose = np.empty(1) # dose variable
     currentIntensities = np.empty(1)
 
-    # this is the intersection of all beamlets that I am dealing with
+    ## this is the intersection of all beamlets geographical locations in centimeters
+    ## It is unique for each value in the x coordinate axis. Beamlet data is organized first in the X axis and then
+    # moves onto the Y axis
     xinter = []
+    ## Same as xinter but for y axis
     yinter = []
 
+    ## This is a list of lists; There is one for each aperture angle and it contains the x coordinate of each of the
+    # nonzero available beamlets
     xdirection = []
+    ## Same as xdirection but in the y coordinate
     ydirection = []
 
+    ## List of lists. Contains limits on the left side of the aperture
     llist = []
+    ## List of lists. Contains limits on the right side of the aperture
     rlist = []
 
+    ## Gradient in voxel dimensions This is the gradient of dF / dZ. Dimension is numvoxels
     voxelgradient = []
-    scipygradient = []
+
+    ## This is the gradient of dF / dk. Dimension is num Apertures
+    aperturegradient = []
+    ## Contains the location of the beamlets that belong to open aperture and that have data available.
     openApertureMaps = []
+    ## Contains data to create the diagonal matrices to process the gradient
     diagmakers = []
     dZdK = 0.0
+    ## This vector produces the angle corresponding to a particular index
     pointtoAngle = []
+    ## This list contains the Dose to Point matrices for each of the beam angles.
     Dlist = []
-    # data class function
+    ## This function returns the objective value and the gradient
     def calcDose(self):
         self.currentDose = np.zeros(self.numvoxels, dtype = float)
         # dZdK will have a dimension that is numvoxels x numbeams
@@ -191,6 +207,7 @@ class vmat_class:
             for i in self.caligraphicC.loc:
                 self.currentDose += DlistT[i][:,self.openApertureMaps[i]] * np.repeat(self.currentIntensities[i], len(self.openApertureMaps[i]), axis = 0)
                 self.dZdK[:,i] = (DlistT[i] * sparse.diags(self.diagmakers[i], 0)).sum(axis=1)
+
 
     def calcGradientandObjValue(self):
         oDoseObj = self.currentDose - quadHelperThresh
@@ -208,9 +225,8 @@ class vmat_class:
         oDoseObjGl = 2 * oDoseObjCl * quadHelperOver
         uDoseObjGl = 2 * uDoseObjCl * quadHelperUnder
 
-        # This is the gradient of dF / dZ. Dimension is numvoxels
+
         self.voxelgradient = 2 * (oDoseObjGl - uDoseObjGl)
-        # This is the gradient of dF / dk. Dimension is num Apertures
         self.aperturegradient = (np.asmatrix(self.voxelgradient) * self.dZdK).transpose()
 
     # default constructor
@@ -358,7 +374,7 @@ gaend = 356;
 if WholeCircle:
     gastep = 2;
 else:
-    gastep = 10;
+    gastep = 20;
 data.pointtoAngle = range(gastart, gaend, gastep)
 ga=[];
 ca=[];
@@ -531,15 +547,22 @@ def calcObjGrad(x, user_data = None):
     data.calcGradientandObjValue()
     return(data.objectiveValue, data.aperturegradient)
 
+## Find geographical location of the ith row in aperture index given by index.
+# Input:    i:     Row
+#           index: Index of this aperture
+# Output:   validbeamlets ONLY contains those beamlet INDICES for which we have available data in this beam angle
+#           validbeamletspecialrange is the same as validbeamlets but appending the endpoints
 def fvalidbeamlets(i, index):
-    # Find geographical location of the first row.
-    geolocX = data.xinter[i]
+    geolocX = data.xinter[i] # geolocx in centimeteres. This is coordinate x of beamlet location.
     # Find all possible locations of beamlets in this row according to geographical location
     indys = np.where(geolocX == data.xdirection[index])
-    geolocYs = data.ydirection[index][indys]
+    geolocYs = data.ydirection[index][indys] # In centimeters. This is coordinate y of all beamlets with x coordinate == geolocX
+    # Notice that geolocYs ONLY contains those beamlets that are available. As opposed to yinter which contains all.
     validbeamletlogic = np.in1d(data.yinter, geolocYs)
+    # validbeamlets ONLY contains those beamlets for which we have available data in this beam angle in index coordinates
     validbeamlets = np.array(range(0, len(data.yinter)))[validbeamletlogic]
     validbeamletspecialrange = np.append(np.append(min(validbeamlets) - 1, validbeamlets), max(validbeamlets) + 1)
+    # That last line appends the endpoints.
     return(validbeamlets, validbeamletspecialrange)
 
 def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, thisApertureIndex):
@@ -583,9 +606,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         lcp = data.llist[succ]
         rcp = data.rlist[succ]
 
-
-    if (29 == thisApertureIndex):
-        print(lcm,rcm,lcp,rcp)
     validbeamlets, validbeamletspecialrange = fvalidbeamlets(0, thisApertureIndex)
     # First handle the calculations for the first row
     beamGrad = D * data.voxelgradient
@@ -683,9 +703,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 minloc = np.argmin(newweights)
                 wnetwork[thisnode] = newweights[minloc]
                 dadnetwork[thisnode] = minloc + posBeginningOfRow - oldflag + 1
-
-        if (29 == thisApertureIndex):
-            print('level M = ', m, ' and thisnode = ', thisnode)
 
         posBeginningOfRow = nodesinpreviouslevel + posBeginningOfRow # This is the total number of network nodes
         # Keep the location of the leftmost leaf
@@ -803,7 +820,7 @@ def solveRMC():
             boundschoice.append((0, None))
         else:
             boundschoice.append((0, 0))
-    res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds = boundschoice, options={'ftol':1e-2, 'disp':5,'maxiter':15})
+    res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds = boundschoice, options={'ftol':1e-3, 'disp':5,'maxiter':200})
 
     print('Restricted Master Problem solved in ' + str(time.time() - start) + ' seconds')
     return(res)
@@ -866,7 +883,7 @@ def colGen(C, WholeCircle, initialApertures):
     vmax = 2.0 * 100
     speedlim = 3.0
 
-    # Assign the most open apertures as initial apertures. They will not have any energy applied to them.
+    # Assign the most open apertures as initial apertures. They will not have any intensity applied to them.
     for i in range(0, data.numbeams):
         data.llist.append([-1] * len(data.xinter))
         data.rlist.append([len(data.yinter) + 1] * len(data.xinter))
@@ -945,7 +962,7 @@ def colGen(C, WholeCircle, initialApertures):
                 kappa.remove(i)
             #if 31 == bestApertureIndex:
             #    print(31)
-            plotAperture(lm, rm, M, N, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/', plotcounter, bestApertureIndex)
+            # plotAperture(lm, rm, M, N, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/', plotcounter, bestApertureIndex)
             printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
             #notinC and denote the final set of fluence rates by yk
@@ -953,36 +970,30 @@ def colGen(C, WholeCircle, initialApertures):
     return(pstar)
 
 def plotAperture(l, r, M, N, myfolder, iterationNumber, bestAperture):
-    global fig
     nrows, ncols = M,N
     image = np.zeros(nrows*ncols)
         # Reshape things into a 9x9 grid
     image = image.reshape((nrows, ncols))
     for i in range(0, M):
-        if 31 == bestAperture:
-            print('l[i]:', l[i], 'r[i]:', r[i])
         image[i, l[i]:(r[i]-1)] = 1
     # Set up a location where to save the figure
-    xcoor = math.ceil(math.sqrt(data.numbeams))
-    ycoor = math.ceil(math.sqrt(data.numbeams))
-    fig.add_subplot(ycoor,xcoor, bestAperture + 1) # add the plot to add
-
-
     row_labels = range(nrows)
     col_labels = range(ncols)
     plt.matshow(image)
     plt.xticks(range(ncols), col_labels)
     plt.yticks(range(nrows), row_labels)
     #plt.savefig(myfolder + 'Aperture' + str(iterationNumber) + '-at-' + str(bestAperture * gastep) + 'degrees.png')
-    plt.close()
 
+
+##This function returns the set of available AND open beamlets for the selected aperture (i).
+#The idea is to have everything ready and precalculated for the evaluation of the objective function in
+#calcDose
+#input: i is the index number of the aperture that I'm working on
+#output: openaperturenp. the set of available AND open beamlets for the selected aperture
+#        diagmaker. A vector that has a 1 in each position where an openaperturebeamlet is available.
+# openaperturenp is read as openapertureMaps. A member of the VMAT_CLASS.
 def updateOpenAperture(i):
-    #This function returns the set of available AND open beamlets for the selected aperture (i)
-    #The idea is to have everythin ready and precalculated for the evaluation of the objective function in
-    #calcDose
-    #input: i is the number of the aperture that I'm working on
-    #output: openaperturenp. the set of available AND open beamlets for the selected aperture
-    #        diagmaker. The same thing but in diagonal format.
+
     leftlimits = 0
     openaperture = []
     for m in range(0, len(data.llist[i])):
@@ -996,9 +1007,9 @@ def updateOpenAperture(i):
         # Keep the location of the letftmost leaf
         leftlimits = leftlimits + len(validbeamlets)
         if (indleft < indright + 1): # If the leaf opening is not completely close
-            for thisbeamlet in range(indleft, indright + 1):
+            for thisbeamlet in range(indleft, indright):
                 openaperture.append(thisbeamlet)
-    openaperturenp = np.array(openaperture, dtype=int)
+    openaperturenp = np.array(openaperture, dtype=int) #Contains indices of open beamlets in the aperture
     diagmaker = np.zeros(data.Dlist[i].shape[0], dtype = float)
     diagmaker[[ij for ij in openaperturenp]] = 1.0
     return(openaperturenp, diagmaker)
@@ -1015,7 +1026,16 @@ print("The whole process took:" , after - before)
 
 print('The whole program took: '  + str(time.time()-start) + ' seconds to finish')
 
-# Print all to pdfs
-fig.savefig('~/multiappt.pdf')
+fig = plt.figure(1)
+xcoor = math.ceil(math.sqrt(data.numbeams))
+ycoor = math.ceil(math.sqrt(data.numbeams))
+for i in range(0, data.numbeams):
+    l = data.llist[i]
+    r = data.rlist[i]
+    fig.add_subplot(ycoor,xcoor, i + 1)
+    plotAperture(l, r, M, N, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/', i, i)
+
+fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/thisplot.png')
+
 
 print("You have graciously finished running this program")

@@ -702,7 +702,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 # Find the minimum and its position in the vector.
                 minloc = np.argmin(newweights)
                 wnetwork[thisnode] = newweights[minloc]
-                dadnetwork[thisnode] = minloc + posBeginningOfRow - oldflag + 1
+                dadnetwork[thisnode] = minloc + posBeginningOfRow - oldflag
 
         posBeginningOfRow = nodesinpreviouslevel + posBeginningOfRow # This is the total number of network nodes
         # Keep the location of the leftmost leaf

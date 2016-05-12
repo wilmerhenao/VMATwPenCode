@@ -27,7 +27,7 @@ import sys
 
 # Set of apertures starting with 16 that are well spread out.
 kappa = [6, 17, 28, 39, 50, 61, 72, 83, 94, 105, 116, 127, 138, 149, 160, 171, 11, 22, 33, 44, 55, 66, 77, 88, 99, 110, 121, 132, 143, 154, 165, 1, 175, 14, 25, 36, 47, 58, 69, 80, 91, 102, 113, 124, 135, 146, 157, 168, 3, 8, 19, 30, 41, 52, 63, 74, 85, 96, 107, 118, 129, 140, 151, 162, 172, 176, 0, 2, 4, 5, 7, 9, 10, 12, 13, 15, 16, 18, 20, 21, 23, 24, 26, 27, 29, 31, 32, 34, 35, 37, 38, 40, 42, 43, 45, 46, 48, 49, 51, 53, 54, 56, 57, 59, 60, 62, 64, 65, 67, 68, 70, 71, 73, 75, 76, 78, 79, 81, 82, 84, 86, 87, 89, 90, 92, 93, 95, 97, 98, 100, 101, 103, 104, 106, 108, 109, 111, 112, 114, 115, 117, 119, 120, 122, 123, 125, 126, 128, 130, 131, 133, 134, 136, 137, 139, 141, 142, 144, 145, 147, 148, 150, 152, 153, 155, 156, 158, 159, 161, 163, 164, 166, 167, 169, 170, 173, 174, 177]
-WholeCircle = False
+WholeCircle = True
 
 rootFolder = '/media/wilmer/datadrive'
 #rootFolder = '/home/wilmer/Documents/Troy_BU'
@@ -613,7 +613,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
 
     nodesinpreviouslevel = 0
     oldflag = 0
-    posBeginningOfRow = 0
+    posBeginningOfRow = 1
     thisnode = 0
     # Max beamlets per row
     bpr = 50
@@ -627,7 +627,8 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     # Work on the first row perimeter and area values
     leftrange = range(math.ceil(max(-1, lcm[0] - vmaxm * angdistancem/speedlim, lcp[0] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N - 1, lcm[0] + vmaxm * angdistancem / speedlim, lcp[0] + vmaxp * angdistancep / speedlim)))
     # Check if unfeasible. If it is then assign one value but tell the result to the person running this
-
+    if(1 == thisApertureIndex):
+        print('previous stuff', lcm, lcp, rcm, rcp)
     if 0 == len(leftrange):
         leftrange = range(leftrange.start, leftrange.start+1)
         sys.exit('constraint leftrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met')
@@ -658,6 +659,8 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
             wnetwork[thisnode] = weight
             # dadnetwork and mnetwork don't need to be changed here for obvious reasons
     posBeginningOfRow = posBeginningOfRow + nodesinpreviouslevel
+    if(1 == thisApertureIndex):
+        print(posBeginningOfRow)
     leftmostleaf = len(validbeamlets) - 1 # Position in python position(-1) of the leftmost leaf
     # Then handle the calculations for the m rows. Nodes that are neither source nor sink.
     for m in range(1,M):
@@ -705,6 +708,8 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 dadnetwork[thisnode] = minloc + posBeginningOfRow - oldflag
 
         posBeginningOfRow = nodesinpreviouslevel + posBeginningOfRow # This is the total number of network nodes
+        if(1 == thisApertureIndex):
+            print(posBeginningOfRow)
         # Keep the location of the leftmost leaf
         leftmostleaf = len(validbeamlets) + leftmostleaf
     # thisnode gets augmented only 1 because only the sink node will be added
@@ -719,6 +724,8 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     l = []
     r = []
     while(1):
+        if(1 == thisApertureIndex):
+            print('thenode', thenode, 'm level:', mnetwork[thenode])
         # Find the predecessor data
         l.append(lnetwork[thenode])
         r.append(rnetwork[thenode])
@@ -729,6 +736,9 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     r.reverse()
     #Pop the last elements because this is the direction of nonexistent sink field
     l.pop(); r.pop()
+
+    if(1 == thisApertureIndex):
+        print('l and r:', l, r)
     return(p, l, r)
 
 def parallelizationPricingProblem(i, C, C2, C3, b, vmax, speedlim, N, M):
@@ -793,6 +803,7 @@ def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M):
     for i in range(0, len(respool)):
         if(M != len(respool[i][1])):
             sys.exit("Length of left vector is less than 28")
+            print('aperture problem is:', i)
 
     print("Best aperture was: ", bestApertureIndex)
     return(pstar, lallret, rallret, bestApertureIndex)
@@ -895,7 +906,7 @@ def colGen(C, WholeCircle, initialApertures):
         random.seed(13)
         global kappa
         kappa = random.sample(kappa, len(kappa))
-        for j in range(0,initialApertures):
+        for j in range(0, min(initialApertures, len(kappa))):
             i = kappa[0]
             data.notinC.insertAngle(i, data.pointtoAngle[i])
             kappa.pop(0)
@@ -1020,7 +1031,7 @@ before = time.time()
 # This is necessary for multiprocessing. Because if I pass into partial then I can't change
 # (Try to Figure out how to get rid of this)
 
-pstar = colGen(0, WholeCircle, 16)
+pstar = colGen(0, WholeCircle, 177)
 after = time.time()
 print("The whole process took:" , after - before)
 

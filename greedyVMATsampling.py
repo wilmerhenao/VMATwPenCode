@@ -27,14 +27,12 @@ import sys
 
 # Set of apertures starting with 16 that are well spread out.
 kappa = [6, 17, 28, 39, 50, 61, 72, 83, 94, 105, 116, 127, 138, 149, 160, 171, 11, 22, 33, 44, 55, 66, 77, 88, 99, 110, 121, 132, 143, 154, 165, 1, 175, 14, 25, 36, 47, 58, 69, 80, 91, 102, 113, 124, 135, 146, 157, 168, 3, 8, 19, 30, 41, 52, 63, 74, 85, 96, 107, 118, 129, 140, 151, 162, 172, 176, 0, 2, 4, 5, 7, 9, 10, 12, 13, 15, 16, 18, 20, 21, 23, 24, 26, 27, 29, 31, 32, 34, 35, 37, 38, 40, 42, 43, 45, 46, 48, 49, 51, 53, 54, 56, 57, 59, 60, 62, 64, 65, 67, 68, 70, 71, 73, 75, 76, 78, 79, 81, 82, 84, 86, 87, 89, 90, 92, 93, 95, 97, 98, 100, 101, 103, 104, 106, 108, 109, 111, 112, 114, 115, 117, 119, 120, 122, 123, 125, 126, 128, 130, 131, 133, 134, 136, 137, 139, 141, 142, 144, 145, 147, 148, 150, 152, 153, 155, 156, 158, 159, 161, 163, 164, 166, 167, 169, 170, 173, 174, 177]
-WholeCircle = True
 
 rootFolder = '/media/wilmer/datadrive'
-#rootFolder = '/home/wilmer/Documents/Troy_BU'
+rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
-degreesep = 60 # How many degrees in between separating neighbor beams.
 objfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/objectives/obj1.txt'
 structurefile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/structureInputs.txt'
 algfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/algInputsWilmer.txt'
@@ -43,6 +41,17 @@ mm3voxels = rootFolder + '/Data/DataProject/HN/hn3mmvoxels.mat'
 priority = [7, 24, 25, 23, 22, 21, 20, 16, 15, 14, 13, 12, 10, 11, 9, 4, 3, 1, 2, 17, 18, 19, 5, 6, 8]
 priority = (np.array(priority)-1).tolist()
 mylines = [line.rstrip('\n') for line in open('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/beamAngles.txt')]
+## Boolean. Are we going to use the full circle or not?
+WholeCircle = False
+gastart = 0 ;
+gaend = 356;
+if WholeCircle:
+    gastep = 2;
+else:
+    gastep = 100;
+pointtoAngle = range(gastart, gaend, gastep)
+ga=[];
+ca=[];
 
 class region:
     """ Contains all information relevant to a particular region"""
@@ -183,6 +192,8 @@ class vmat_class:
     llist = []
     ## List of lists. Contains limits on the right side of the aperture
     rlist = []
+    ## Results from latest restricted master problem
+    rmpres = []
 
     ## Gradient in voxel dimensions This is the gradient of dF / dZ. Dimension is numvoxels
     voxelgradient = []
@@ -255,7 +266,7 @@ data = vmat_class()
 
 data.outputDirectory = outputfolder # given by the user in the first lines of *.pydoc
 data.dataDirectory = readfolder
-
+data.pointtoAngle = pointtoAngle
 # Function definitions
 ####################################################################
 
@@ -369,16 +380,6 @@ data.maskValue = maskValueSingle
 data.fullMaskValue = maskValueFull
 print('Masking has been calculated')
 
-gastart = 0 ;
-gaend = 356;
-if WholeCircle:
-    gastep = 2;
-else:
-    gastep = 20;
-data.pointtoAngle = range(gastart, gaend, gastep)
-ga=[];
-ca=[];
-
 ## Treatment of BEAMINFO data
 os.chdir(readfolderD)
 for g in range(gastart, gaend, gastep):
@@ -470,7 +471,6 @@ if __name__ == '__main__':
 
 # Assign data
 for objResult in Allmats:
-    print('assign' + str(objResult[0]) + 'in memory')
     data.Dlist[objResult[0]] = objResult[1]
 
 print('Finished reading D matrices')
@@ -627,8 +627,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     # Work on the first row perimeter and area values
     leftrange = range(math.ceil(max(-1, lcm[0] - vmaxm * angdistancem/speedlim, lcp[0] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N - 1, lcm[0] + vmaxm * angdistancem / speedlim, lcp[0] + vmaxp * angdistancep / speedlim)))
     # Check if unfeasible. If it is then assign one value but tell the result to the person running this
-    if(1 == thisApertureIndex):
-        print('previous stuff', lcm, lcp, rcm, rcp)
     if 0 == len(leftrange):
         leftrange = range(leftrange.start, leftrange.start+1)
         sys.exit('constraint leftrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met')
@@ -659,8 +657,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
             wnetwork[thisnode] = weight
             # dadnetwork and mnetwork don't need to be changed here for obvious reasons
     posBeginningOfRow = posBeginningOfRow + nodesinpreviouslevel
-    if(1 == thisApertureIndex):
-        print(posBeginningOfRow)
     leftmostleaf = len(validbeamlets) - 1 # Position in python position(-1) of the leftmost leaf
     # Then handle the calculations for the m rows. Nodes that are neither source nor sink.
     for m in range(1,M):
@@ -708,8 +704,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 dadnetwork[thisnode] = minloc + posBeginningOfRow - oldflag
 
         posBeginningOfRow = nodesinpreviouslevel + posBeginningOfRow # This is the total number of network nodes
-        if(1 == thisApertureIndex):
-            print(posBeginningOfRow)
         # Keep the location of the leftmost leaf
         leftmostleaf = len(validbeamlets) + leftmostleaf
     # thisnode gets augmented only 1 because only the sink node will be added
@@ -724,8 +718,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     l = []
     r = []
     while(1):
-        if(1 == thisApertureIndex):
-            print('thenode', thenode, 'm level:', mnetwork[thenode])
         # Find the predecessor data
         l.append(lnetwork[thenode])
         r.append(rnetwork[thenode])
@@ -736,9 +728,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     r.reverse()
     #Pop the last elements because this is the direction of nonexistent sink field
     l.pop(); r.pop()
-
-    if(1 == thisApertureIndex):
-        print('l and r:', l, r)
     return(p, l, r)
 
 def parallelizationPricingProblem(i, C, C2, C3, b, vmax, speedlim, N, M):
@@ -947,7 +936,7 @@ def colGen(C, WholeCircle, initialApertures):
             # Precalculate the aperture map to save times.
             data.openApertureMaps[bestApertureIndex], data.diagmakers[bestApertureIndex] = updateOpenAperture(bestApertureIndex)
             rmpres = solveRMC()
-
+            data.rmpres = rmpres
             #epsilonflag = 0 # If some aperture was removed
             for thisindex in range(0, data.numbeams):
                 if thisindex in data.caligraphicC.loc: #Only activate what is an aperture
@@ -980,28 +969,12 @@ def colGen(C, WholeCircle, initialApertures):
 
     return(pstar)
 
-def plotAperture(l, r, M, N, myfolder, iterationNumber, bestAperture):
-    nrows, ncols = M,N
-    image = np.zeros(nrows*ncols)
-        # Reshape things into a 9x9 grid
-    image = image.reshape((nrows, ncols))
-    for i in range(0, M):
-        image[i, l[i]:(r[i]-1)] = 1
-    # Set up a location where to save the figure
-    row_labels = range(nrows)
-    col_labels = range(ncols)
-    plt.matshow(image)
-    plt.xticks(range(ncols), col_labels)
-    plt.yticks(range(nrows), row_labels)
-    #plt.savefig(myfolder + 'Aperture' + str(iterationNumber) + '-at-' + str(bestAperture * gastep) + 'degrees.png')
-
-
-##This function returns the set of available AND open beamlets for the selected aperture (i).
-#The idea is to have everything ready and precalculated for the evaluation of the objective function in
-#calcDose
-#input: i is the index number of the aperture that I'm working on
-#output: openaperturenp. the set of available AND open beamlets for the selected aperture
-#        diagmaker. A vector that has a 1 in each position where an openaperturebeamlet is available.
+## This function returns the set of available AND open beamlets for the selected aperture (i).
+# The idea is to have everything ready and precalculated for the evaluation of the objective function in
+# calcDose
+# input: i is the index number of the aperture that I'm working on
+# output: openaperturenp. the set of available AND open beamlets for the selected aperture
+#         diagmaker. A vector that has a 1 in each position where an openaperturebeamlet is available.
 # openaperturenp is read as openapertureMaps. A member of the VMAT_CLASS.
 def updateOpenAperture(i):
 
@@ -1034,19 +1007,30 @@ before = time.time()
 pstar = colGen(0, WholeCircle, 177)
 after = time.time()
 print("The whole process took:" , after - before)
-
 print('The whole program took: '  + str(time.time()-start) + ' seconds to finish')
 
-fig = plt.figure(1)
+## Plotting apertures
 xcoor = math.ceil(math.sqrt(data.numbeams))
 ycoor = math.ceil(math.sqrt(data.numbeams))
-for i in range(0, data.numbeams):
-    l = data.llist[i]
-    r = data.rlist[i]
-    fig.add_subplot(ycoor,xcoor, i + 1)
-    plotAperture(l, r, M, N, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/', i, i)
+nrows, ncols = M,N
+print('numbeams', data.numbeams)
+for mynumbeam in range(0, data.numbeams):
+    l = data.llist[mynumbeam]
+    r = data.rlist[mynumbeam]
+    image = np.zeros(nrows*ncols)
+        # Reshape things into a 9x9 grid
+    image = image.reshape((nrows, ncols))
+    for i in range(0, M):
+        image[i, l[i]:(r[i]-1)] = data.rmpres.x[mynumbeam]
+    # Set up a location where to save the figure
+    fig = plt.figure(1)
+    print('i + 1 es: ', mynumbeam + 1)
+    plt.subplot(ycoor,xcoor, mynumbeam + 1)
+    #plt.plot([4, 5, 6])
+    plt.imshow(image)
+    plt.axis('off')
+    #plt.show()
 
 fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/thisplot.png')
-
 
 print("You have graciously finished running this program")

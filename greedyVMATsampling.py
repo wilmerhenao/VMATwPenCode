@@ -49,7 +49,7 @@ gaend = 356;
 if WholeCircle:
     gastep = 2;
 else:
-    gastep = 60;
+    gastep = 20;
 pointtoAngle = range(gastart, gaend, gastep)
 ga=[];
 ca=[];
@@ -211,6 +211,10 @@ class vmat_class:
     ## This list contains the Dose to Point matrices for each of the beam angles.
     Dlist = []
     ## This function returns the objective value and the gradient
+
+    ## Counts how many times I have entered the aperture replacement option
+    entryCounter = 0
+
     def calcDose(self):
         self.currentDose = np.zeros(self.numvoxels, dtype = float)
         # dZdK will have a dimension that is numvoxels x numbeams
@@ -943,9 +947,8 @@ def colGen(C, WholeCircle, initialApertures):
             #epsilonflag = 0 # If some aperture was removed
             for thisindex in range(0, data.numbeams):
                 if thisindex in data.caligraphicC.loc: #Only activate what is an aperture
-                    if rmpres.x[thisindex] < 1e-6:
-                        #epsilonflag = 1
-
+                    if rmpres.x[thisindex] < 10E-3:
+                        data.entryCounter += 1
                         # Remove from caligraphicC and add to notinC
                         data.notinC.insertAngle(thisindex, data.pointtoAngle[thisindex])
                         data.caligraphicC.removeIndex(thisindex)
@@ -1027,7 +1030,7 @@ before = time.time()
 # This is necessary for multiprocessing. Because if I pass into partial then I can't change
 # (Try to Figure out how to get rid of this)
 
-pstar = colGen(5, WholeCircle, 177)
+pstar = colGen(5, WholeCircle, 16)
 after = time.time()
 print("The whole process took:" , after - before)
 print('The whole program took: '  + str(time.time()-start) + ' seconds to finish')
@@ -1054,5 +1057,5 @@ for mynumbeam in range(0, data.numbeams):
     #plt.show()
 
 fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/thisplot.png')
-
+print('You removed apertures using the removal criterion a total of: ', data.entryCounter, ' times')
 print("You have graciously finished running this program")

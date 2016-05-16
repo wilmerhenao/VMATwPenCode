@@ -29,7 +29,7 @@ import sys
 kappa = [6, 17, 28, 39, 50, 61, 72, 83, 94, 105, 116, 127, 138, 149, 160, 171, 11, 22, 33, 44, 55, 66, 77, 88, 99, 110, 121, 132, 143, 154, 165, 1, 175, 14, 25, 36, 47, 58, 69, 80, 91, 102, 113, 124, 135, 146, 157, 168, 3, 8, 19, 30, 41, 52, 63, 74, 85, 96, 107, 118, 129, 140, 151, 162, 172, 176, 0, 2, 4, 5, 7, 9, 10, 12, 13, 15, 16, 18, 20, 21, 23, 24, 26, 27, 29, 31, 32, 34, 35, 37, 38, 40, 42, 43, 45, 46, 48, 49, 51, 53, 54, 56, 57, 59, 60, 62, 64, 65, 67, 68, 70, 71, 73, 75, 76, 78, 79, 81, 82, 84, 86, 87, 89, 90, 92, 93, 95, 97, 98, 100, 101, 103, 104, 106, 108, 109, 111, 112, 114, 115, 117, 119, 120, 122, 123, 125, 126, 128, 130, 131, 133, 134, 136, 137, 139, 141, 142, 144, 145, 147, 148, 150, 152, 153, 155, 156, 158, 159, 161, 163, 164, 166, 167, 169, 170, 173, 174, 177]
 
 rootFolder = '/media/wilmer/datadrive'
-rootFolder = '/home/wilmer/Documents/Troy_BU'
+#rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
 readfolderD = readfolder + 'Dij/'
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
@@ -41,6 +41,7 @@ mm3voxels = rootFolder + '/Data/DataProject/HN/hn3mmvoxels.mat'
 priority = [7, 24, 25, 23, 22, 21, 20, 16, 15, 14, 13, 12, 10, 11, 9, 4, 3, 1, 2, 17, 18, 19, 5, 6, 8]
 priority = (np.array(priority)-1).tolist()
 mylines = [line.rstrip('\n') for line in open('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/beamAngles.txt')]
+
 ## Boolean. Are we going to use the full circle or not?
 WholeCircle = False
 gastart = 0 ;
@@ -48,7 +49,7 @@ gaend = 356;
 if WholeCircle:
     gastep = 2;
 else:
-    gastep = 100;
+    gastep = 60;
 pointtoAngle = range(gastart, gaend, gastep)
 ga=[];
 ca=[];
@@ -556,8 +557,10 @@ def fvalidbeamlets(i, index):
     geolocX = data.xinter[i] # geolocx in centimeteres. This is coordinate x of beamlet location.
     # Find all possible locations of beamlets in this row according to geographical location
     indys = np.where(geolocX == data.xdirection[index])
-    geolocYs = data.ydirection[index][indys] # In centimeters. This is coordinate y of all beamlets with x coordinate == geolocX
+    # In centimeters. This is coordinate y of all beamlets with x coordinate == geolocX
     # Notice that geolocYs ONLY contains those beamlets that are available. As opposed to yinter which contains all.
+    geolocYs = data.ydirection[index][indys]
+
     validbeamletlogic = np.in1d(data.yinter, geolocYs)
     # validbeamlets ONLY contains those beamlets for which we have available data in this beam angle in index coordinates
     validbeamlets = np.array(range(0, len(data.yinter)))[validbeamletlogic]
@@ -565,22 +568,21 @@ def fvalidbeamlets(i, index):
     # That last line appends the endpoints.
     return(validbeamlets, validbeamletspecialrange)
 
-def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, thisApertureIndex):
-    # C, C2, C3 are constants in the penalization function
-    # angdistancem = $\delta_{c^-c}$
-    # angdistancep = $\delta_{cc^+}$
-    # vmax = maximum leaf speed
-    # speedlim = s
-    # predec = predecesor index, either an index or an empty list
-    # succ = succesor index, either an index or an empty list
-    # lcm = vector of left limits in the previous aperture
-    # lcp = vector of left limits in the next aperture
-    # rcm = vector of right limits in the previous aperture
-    # rcp = vector of right limits in the previous aperture
-    # N = Number of beamlets per row
-    # M = Number of rows in an aperture
-    # thisApertureIndex = index location in the set of apertures that I have saved.
-    posBeginningOfRow = 0
+## C, C2, C3 are constants in the penalization function
+# angdistancem = $\delta_{c^-c}$
+# angdistancep = $\delta_{cc^+}$
+# vmax = maximum leaf speed
+# speedlim = s
+# predec = predecesor index, either an index or an empty list
+# succ = succesor index, either an index or an empty list
+# lcm = vector of left limits in the previous aperture
+# lcp = vector of left limits in the next aperture
+# rcm = vector of right limits in the previous aperture
+# rcp = vector of right limits in the previous aperture
+# N = Number of beamlets per row
+# M = Number of rows in an aperture
+# thisApertureIndex = index location in the set of apertures that I have saved.
+def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, thisApertureIndex, bw):
     D = data.Dlist[thisApertureIndex]
     # vmaxm and vmaxp describe the speeds that are possible for the leaves from the predecessor and to the successor
     vmaxm = vmax
@@ -625,13 +627,13 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     wnetwork = np.zeros(networkNodesNumber, dtype = np.float) # Weight Vector
     dadnetwork = np.zeros(networkNodesNumber, dtype = np.int) # Dad Vector. Where Dad is the combination of (l,r) in previous row
     # Work on the first row perimeter and area values
-    leftrange = range(math.ceil(max(-1, lcm[0] - vmaxm * angdistancem/speedlim, lcp[0] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N - 1, lcm[0] + vmaxm * angdistancem / speedlim, lcp[0] + vmaxp * angdistancep / speedlim)))
+    leftrange = range(math.ceil(max(-1, lcm[0] - vmaxm * (angdistancem/speedlim)/bw , lcp[0] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N - 1, lcm[0] + vmaxm * (angdistancem/speedlim)/bw , lcp[0] + vmaxp * (angdistancep/speedlim)/bw )))
     # Check if unfeasible. If it is then assign one value but tell the result to the person running this
     if 0 == len(leftrange):
         leftrange = range(leftrange.start, leftrange.start+1)
         sys.exit('constraint leftrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met')
     for l in leftrange:
-        rightrange = range(math.ceil(max(l + 1, rcm[0] - vmaxm * angdistancem/speedlim, rcp[0] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N, rcm[0] + vmaxm * angdistancem / speedlim, rcp[0] + vmaxp * angdistancep / speedlim)))
+        rightrange = range(math.ceil(max(l + 1, rcm[0] - vmaxm * (angdistancem/speedlim)/bw , rcp[0] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N, rcm[0] + vmaxm * (angdistancem/speedlim)/bw , rcp[0] + vmaxp * (angdistancep/speedlim)/bw )))
         if 0 == len(rightrange):
             rightrange = range(rightrange.start, leftrange.start+1)
             sys.exit('constraint rightrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met')
@@ -665,14 +667,14 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         oldflag = nodesinpreviouslevel
         nodesinpreviouslevel = 0
         # And now process normally checking against valid beamlets
-        leftrange = range(math.ceil(max(-1, lcm[m] - vmaxm * angdistancem/speedlim, lcp[m] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N - 1, lcm[m] + vmaxm * angdistancem / speedlim, lcp[m] + vmaxp * angdistancep / speedlim)))
+        leftrange = range(math.ceil(max(-1, lcm[m] - vmaxm * (angdistancem/speedlim)/bw , lcp[m] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N - 1, lcm[m] + vmaxm * (angdistancem/speedlim)/bw , lcp[m] + vmaxp * (angdistancep/speedlim)/bw )))
         # Check if unfeasible. If it is then assign one value but tell the result to the person running this
         if 0 == len(leftrange):
             leftrange = range(leftrange.start, leftrange.start+1)
             sys.exit('constraint leftrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met')
 
         for l in leftrange:
-            rightrange = range(math.ceil(max(l + 1, rcm[m] - vmaxm * angdistancem/speedlim, rcp[m] - vmaxp * angdistancep / speedlim)), 1 + math.floor(min(N, rcm[m] + vmaxm * angdistancem / speedlim, rcp[m] + vmaxp * angdistancep / speedlim)))
+            rightrange = range(math.ceil(max(l + 1, rcm[m] - vmaxm * (angdistancem/speedlim)/bw , rcp[m] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N, rcm[m] + vmaxm * (angdistancem/speedlim)/bw , rcp[m] + vmaxp * (angdistancep/speedlim)/bw )))
             if 0 == len(rightrange):
                 rightrange = range(rightrange.start, leftrange.start+1)
                 sys.exit('constraint rightrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met')
@@ -730,7 +732,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     l.pop(); r.pop()
     return(p, l, r)
 
-def parallelizationPricingProblem(i, C, C2, C3, b, vmax, speedlim, N, M):
+def parallelizationPricingProblem(i, C, C2, C3, b, vmax, speedlim, N, M, bw):
     thisApertureIndex = i
 
     print("analysing available aperture" , thisApertureIndex)
@@ -760,10 +762,10 @@ def parallelizationPricingProblem(i, C, C2, C3, b, vmax, speedlim, N, M):
         angdistancem = data.notinC(thisApertureIndex) - data.caligraphicC(predec)
 
     # Find Numeric value of previous and next angle.
-    p, l, r = PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, thisApertureIndex)
+    p, l, r = PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, predec, succ, N, M, thisApertureIndex, bw)
     return(p,l,r,thisApertureIndex)
 
-def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M):
+def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M, bw):
     pstar = np.inf
     bestAperture = None
     print("Choosing one aperture amongst the ones that are available")
@@ -775,7 +777,7 @@ def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M):
     rall = [None] * data.notinC.len()
     pall = np.array([None] * data.notinC.len())
 
-    partialparsubpp = partial(parallelizationPricingProblem, C=C, C2=C2, C3=C3, b=b, vmax=vmax, speedlim=speedlim, N=N, M=M)
+    partialparsubpp = partial(parallelizationPricingProblem, C=C, C2=C2, C3=C3, b=b, vmax=vmax, speedlim=speedlim, N=N, M=M, bw=bw)
     if __name__ == '__main__':
         pool = Pool(processes=8)              # process per MP
         respool = pool.map(partialparsubpp, data.notinC.loc)
@@ -875,13 +877,14 @@ def printresults(iterationNumber, myfolder):
     plt.close()
 
 def colGen(C, WholeCircle, initialApertures):
-    # WholeCircle: Boolean. If true the whole circle is analysed. If false, it is customized
-    # initialApertures: The number of initial apertures if WholeCircle = true
-    # User defined data
     C2 = 1.0
     C3 = 1.0
-    vmax = 2.0 * 100
-    speedlim = 3.0
+
+    ## Maximum leaf speed
+    vmax = 2.25      # 2.25 cms per second
+    speedlim = 0.85  # Values are in the VMATc paper page 2968. 0.85 < s < 6
+    beamletwidth = 0.5 #Width of the beamlet according to CORT pdf "Summary of Patient Characteristics"
+
 
     # Assign the most open apertures as initial apertures. They will not have any intensity applied to them.
     for i in range(0, data.numbeams):
@@ -921,7 +924,7 @@ def colGen(C, WholeCircle, initialApertures):
         # Step 1 on Fei's paper. Use the information on the current treatment plan to formulate and solve an instance of the PP
         data.calcDose()
         data.calcGradientandObjValue()
-        pstar, lm, rm, bestApertureIndex = PricingProblem(C, C2, C3, 0.5, vmax, speedlim, N, M)
+        pstar, lm, rm, bestApertureIndex = PricingProblem(C, C2, C3, 0.5, vmax, speedlim, N, M, beamletwidth)
         # Step 2. If the optimal value of the PP is nonnegative**, go to step 5. Otherwise, denote the optimal solution to the
         # PP by c and Ac and replace caligraphic C and A = Abar, k \in caligraphicC
         if pstar >= 0:
@@ -970,14 +973,13 @@ def colGen(C, WholeCircle, initialApertures):
     return(pstar)
 
 ## This function returns the set of available AND open beamlets for the selected aperture (i).
-# The idea is to have everything ready and precalculated for the evaluation of the objective function in
+# The idea is to have everything ready and pre-calculated for the evaluation of the objective function in
 # calcDose
 # input: i is the index number of the aperture that I'm working on
 # output: openaperturenp. the set of available AND open beamlets for the selected aperture
 #         diagmaker. A vector that has a 1 in each position where an openaperturebeamlet is available.
 # openaperturenp is read as openapertureMaps. A member of the VMAT_CLASS.
 def updateOpenAperture(i):
-
     leftlimits = 0
     openaperture = []
     for m in range(0, len(data.llist[i])):
@@ -985,16 +987,37 @@ def updateOpenAperture(i):
         # Find geographical location of the first row.
         validbeamlets, validbeamletspecialrange = fvalidbeamlets(m, i)
         # First index in this row
-        indleft = data.llist[i][m] + 1 + leftlimits - min(validbeamlets) # I subtract min validbeamlets bec. I want to
+        #indleft = data.llist[i][m] + 1 + leftlimits - min(validbeamlets) # I subtract min validbeamlets bec. I want to
                                                                          # find coordinates in available space
-        indright = data.rlist[i][m] - 1 + leftlimits - min(validbeamlets)
+        #indright = data.rlist[i][m] - 1 + leftlimits - min(validbeamlets)
+        if (data.llist[i][m] >= min(validbeamlets) -1):
+            # I subtract min validbeamlets bec. I want to find coordinates in available space
+            indleft = data.llist[i][m] + 1 + leftlimits - min(validbeamlets)
+        else:
+            # if the left limit is too far away to the left, just take what's available
+            indleft = 0
+
+        if (data.rlist[i][m] > max(validbeamlets)):
+            # If the right limit is too far to the left, just grab the whole thing.
+            indright = len(validbeamlets) + leftlimits
+        else:
+            if(data.rlist[i][m] < min(validbeamlets)):
+                # Right limit is to the left of validbeamlets (This situation is weird)
+                indright = 0
+            else:
+                indright = data.rlist[i][m] - 1 + leftlimits - min(validbeamlets)
+
         # Keep the location of the letftmost leaf
         leftlimits = leftlimits + len(validbeamlets)
-        if (indleft < indright + 1): # If the leaf opening is not completely close
+        #print('indleft, data.llist[i][m], leftlimits, validbeam', indleft, data.llist[i][m], leftlimits, validbeamlets)
+        if (indleft < indright + 1): # If the leaf opening is not completely close, and nothing weird happened
             for thisbeamlet in range(indleft, indright):
                 openaperture.append(thisbeamlet)
     openaperturenp = np.array(openaperture, dtype=int) #Contains indices of open beamlets in the aperture
     diagmaker = np.zeros(data.Dlist[i].shape[0], dtype = float)
+    #print('openaperturenp', openaperturenp)
+    #print('its length:', len(openaperturenp))
+    #sys.exit('wilmer breaks it here')
     diagmaker[[ij for ij in openaperturenp]] = 1.0
     return(openaperturenp, diagmaker)
 
@@ -1004,7 +1027,7 @@ before = time.time()
 # This is necessary for multiprocessing. Because if I pass into partial then I can't change
 # (Try to Figure out how to get rid of this)
 
-pstar = colGen(0, WholeCircle, 177)
+pstar = colGen(5, WholeCircle, 177)
 after = time.time()
 print("The whole process took:" , after - before)
 print('The whole program took: '  + str(time.time()-start) + ' seconds to finish')
@@ -1024,7 +1047,6 @@ for mynumbeam in range(0, data.numbeams):
         image[i, l[i]:(r[i]-1)] = data.rmpres.x[mynumbeam]
     # Set up a location where to save the figure
     fig = plt.figure(1)
-    print('i + 1 es: ', mynumbeam + 1)
     plt.subplot(ycoor,xcoor, mynumbeam + 1)
     #plt.plot([4, 5, 6])
     plt.imshow(image)

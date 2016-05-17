@@ -635,11 +635,11 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     leftrange = range(math.ceil(max(-1, lcm[0] - vmaxm * (angdistancem/speedlim)/bw , lcp[0] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N - 1, lcm[0] + vmaxm * (angdistancem/speedlim)/bw , lcp[0] + vmaxp * (angdistancep/speedlim)/bw )))
     # Check if unfeasible. If it is then assign one value but tell the result to the person running this
     if (0 == len(leftrange)):
-        sys.exit('constraint leftrange at level ' + str(0) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[0], angdistancem, lcp[0]', lcm[0], angdistancem, lcp[0], '\nFull left limits, lcp, rcp:', lcp, rcp, 'm: ', 0, 'predecesor: ', predec, 'succesor: ', succ)
+        print('constraint leftrange at level ' + str(0) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[0], angdistancem, lcp[0]', lcm[0], angdistancem, lcp[0], '\nFull left limits, lcp, rcp:', lcp, rcp, 'm: ', 0, 'predecesor: ', predec, 'succesor: ', succ)
     for l in leftrange:
         rightrange = range(math.ceil(max(l + 1, rcm[0] - vmaxm * (angdistancem/speedlim)/bw , rcp[0] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N, rcm[0] + vmaxm * (angdistancem/speedlim)/bw , rcp[0] + vmaxp * (angdistancep/speedlim)/bw )))
         if (0 == len(rightrange)):
-            sys.exit('constraint rightrange at level ' + str(0) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[0], angdistancem, lcp[0]', lcm[0], angdistancem, lcp[0], '\nFull left limits, lcp, rcp:', lcp, rcp, 'm: ', 0, 'predecesor: ', predec, 'succesor: ', succ)
+            print('constraint rightrange at level ' + str(0) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[0], angdistancem, lcp[0]', lcm[0], angdistancem, lcp[0], '\nFull left limits, lcp, rcp:', lcp, rcp, 'm: ', 0, 'predecesor: ', predec, 'succesor: ', succ)
         for r in rightrange:
             thisnode = thisnode + 1
             nodesinpreviouslevel = nodesinpreviouslevel + 1
@@ -673,12 +673,12 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         leftrange = range(math.ceil(max(-1, lcm[m] - vmaxm * (angdistancem/speedlim)/bw , lcp[m] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N - 1, lcm[m] + vmaxm * (angdistancem/speedlim)/bw , lcp[m] + vmaxp * (angdistancep/speedlim)/bw )))
         # Check if unfeasible. If it is then assign one value but tell the result to the person running this
         if(0 == len(leftrange)):
-            sys.exit('constraint leftrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[m], angdistancem, lcp[m]', lcm[m], angdistancem, lcp[m], '\nFull left limits, lcp, rcp:', lcp, rcp, 'm: ', m, 'predecesor: ', predec, 'succesor: ', succ)
+            print('constraint leftrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[m], angdistancem, lcp[m]', lcm[m], angdistancem, lcp[m], '\nFull left limits, lcp, rcp:', lcp, rcp, 'm: ', m, 'predecesor: ', predec, 'succesor: ', succ)
 
         for l in leftrange:
             rightrange = range(math.ceil(max(l + 1, rcm[m] - vmaxm * (angdistancem/speedlim)/bw , rcp[m] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N, rcm[m] + vmaxm * (angdistancem/speedlim)/bw , rcp[m] + vmaxp * (angdistancep/speedlim)/bw )))
             if (0 == len(rightrange)):
-                sys.exit('constraint rightrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[m], angdistancem, lcp[m]', lcm[m], angdistancem, lcp[m], '\nFull left limits, lcp, rcp:', lcp, rcp, 'm: ', m, 'predecesor: ', predec, 'succesor: ', succ)
+                print('constraint rightrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[m], angdistancem, lcp[m]', lcm[m], angdistancem, lcp[m], '\nFull left limits, lcp, rcp:', lcp, rcp, 'm: ', m, 'predecesor: ', predec, 'succesor: ', succ)
             for r in rightrange:
                 nodesinpreviouslevel = nodesinpreviouslevel + 1
                 thisnode = thisnode + 1

@@ -634,14 +634,17 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     # Work on the first row perimeter and area values
     leftrange = range(math.ceil(max(-1, lcm[0] - vmaxm * (angdistancem/speedlim)/bw , lcp[0] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N - 1, lcm[0] + vmaxm * (angdistancem/speedlim)/bw , lcp[0] + vmaxp * (angdistancep/speedlim)/bw )))
     # Check if unfeasible. If it is then assign one value but tell the result to the person running this
-    if 0 == len(leftrange):
-        leftrange = range(leftrange.start, leftrange.start+1)
-        sys.exit('constraint leftrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met')
+    try:
+        assert(0 == len(leftrange)), "error!"
+    except AssertionError as e:
+        # This is a problem and I would like to report values:
+        e.args += ('constraint leftrange at level ' + str(0) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[0], angdistancem, lcp[0]', lcm[0], angdistancem, lcp[0], '\nFull left limits, lcp, rcp:', lcp, rcp, 'm: ', 0)
     for l in leftrange:
         rightrange = range(math.ceil(max(l + 1, rcm[0] - vmaxm * (angdistancem/speedlim)/bw , rcp[0] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N, rcm[0] + vmaxm * (angdistancem/speedlim)/bw , rcp[0] + vmaxp * (angdistancep/speedlim)/bw )))
-        if 0 == len(rightrange):
-            rightrange = range(rightrange.start, leftrange.start+1)
-            sys.exit('constraint rightrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met')
+        try:
+            assert(0 == len(rightrange)), "error!"
+        except AssertionError as e:
+            e.args += ('constraint rightrange at level ' + str(0) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[0], angdistancem, lcp[0]', lcm[0], angdistancem, lcp[0], '\nFull left limits, lcp, rcp:', lcp, rcp, 'm: ', 0)
         for r in rightrange:
             thisnode = thisnode + 1
             nodesinpreviouslevel = nodesinpreviouslevel + 1
@@ -674,16 +677,18 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         # And now process normally checking against valid beamlets
         leftrange = range(math.ceil(max(-1, lcm[m] - vmaxm * (angdistancem/speedlim)/bw , lcp[m] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N - 1, lcm[m] + vmaxm * (angdistancem/speedlim)/bw , lcp[m] + vmaxp * (angdistancep/speedlim)/bw )))
         # Check if unfeasible. If it is then assign one value but tell the result to the person running this
-        if 0 == len(leftrange):
-            leftrange = range(leftrange.start, leftrange.start+1)
-            sys.exit('constraint leftrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met')
+        try:
+            assert(0 == len(leftrange)), "error!"
+        except AssertionError as e:
+            # This is a problem and I would like to report values:
+            e.args += ('constraint leftrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[m], angdistancem, lcp[m]', lcm[m], angdistancem, lcp[m], '\nFull left limits, lcp, rcp:', lcp, rcp, 'm: ', m)
 
         for l in leftrange:
             rightrange = range(math.ceil(max(l + 1, rcm[m] - vmaxm * (angdistancem/speedlim)/bw , rcp[m] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N, rcm[m] + vmaxm * (angdistancem/speedlim)/bw , rcp[m] + vmaxp * (angdistancep/speedlim)/bw )))
-            if 0 == len(rightrange):
-                rightrange = range(rightrange.start, leftrange.start+1)
-                sys.exit('constraint rightrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met')
-
+            try:
+                assert(0 == len(rightrange)), "error!"
+            except AssertionError as e:
+                e.args += ('constraint rightrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[m], angdistancem, lcp[m]', lcm[m], angdistancem, lcp[m], '\nFull left limits, lcp, rcp:', lcp, rcp, 'm: ', m)
             for r in rightrange:
                 nodesinpreviouslevel = nodesinpreviouslevel + 1
                 thisnode = thisnode + 1
@@ -972,8 +977,6 @@ def colGen(C, WholeCircle, initialApertures):
             for i in elemstoinclude:
                 data.notinC.insertAngle(i, data.pointtoAngle[i])
                 kappa.remove(i)
-            #if 31 == bestApertureIndex:
-            #    print(31)
             # plotAperture(lm, rm, M, N, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/', plotcounter, bestApertureIndex)
             printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
@@ -996,9 +999,6 @@ def updateOpenAperture(i):
         # Find geographical location of the first row.
         validbeamlets, validbeamletspecialrange = fvalidbeamlets(m, i)
         # First index in this row
-        #indleft = data.llist[i][m] + 1 + leftlimits - min(validbeamlets) # I subtract min validbeamlets bec. I want to
-                                                                         # find coordinates in available space
-        #indright = data.rlist[i][m] - 1 + leftlimits - min(validbeamlets)
         if (data.llist[i][m] >= min(validbeamlets) -1):
             # I subtract min validbeamlets bec. I want to find coordinates in available space
             indleft = data.llist[i][m] + 1 + leftlimits - min(validbeamlets)
@@ -1010,11 +1010,11 @@ def updateOpenAperture(i):
             # If the right limit is too far to the left, just grab the whole thing.
             indright = len(validbeamlets) + leftlimits
         else:
-            if(data.rlist[i][m] < min(validbeamlets)):
+            if(data.rlist[i][m] >= min(validbeamlets)):
+                indright = data.rlist[i][m] - 1 + leftlimits - min(validbeamlets)
+            else:
                 # Right limit is to the left of validbeamlets (This situation is weird)
                 indright = 0
-            else:
-                indright = data.rlist[i][m] - 1 + leftlimits - min(validbeamlets)
 
         # Keep the location of the letftmost leaf
         leftlimits = leftlimits + len(validbeamlets)

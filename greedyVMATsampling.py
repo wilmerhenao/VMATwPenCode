@@ -43,7 +43,7 @@ priority = (np.array(priority)-1).tolist()
 mylines = [line.rstrip('\n') for line in open('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/beamAngles.txt')]
 
 ## Boolean. Are we going to use the full circle or not?
-WholeCircle = False
+WholeCircle = True
 gastart = 0 ;
 gaend = 356;
 if WholeCircle:
@@ -628,7 +628,8 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     lnetwork = np.zeros(networkNodesNumber, dtype = np.int) #left limit vector
     rnetwork = np.zeros(networkNodesNumber, dtype = np.int) #right limit vector
     mnetwork = np.ones(networkNodesNumber, dtype = np.int) #Only to save some time in the first loop
-    wnetwork = np.zeros(networkNodesNumber, dtype = np.float) # Weight Vector
+    wnetwork = np.empty(networkNodesNumber, dtype = np.float) # Weight Vector
+    wnetwork[:] = np.inf
     dadnetwork = np.zeros(networkNodesNumber, dtype = np.int) # Dad Vector. Where Dad is the combination of (l,r) in previous row
     # Work on the first row perimeter and area values
     leftrange = range(math.ceil(max(-1, lcm[0] - vmaxm * (angdistancem/speedlim)/bw , lcp[0] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N - 1, lcm[0] + vmaxm * (angdistancem/speedlim)/bw , lcp[0] + vmaxp * (angdistancep/speedlim)/bw )))
@@ -714,8 +715,11 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         leftmostleaf = len(validbeamlets) + leftmostleaf
     # thisnode gets augmented only 1 because only the sink node will be added
     thisnode = thisnode + 1
+
     for mynode in (range(posBeginningOfRow - nodesinpreviouslevel + 1, posBeginningOfRow)):
         weight = C * ( C2 * (rnetwork[mynode] - lnetwork[mynode] ))
+        if(thisApertureIndex == 155):
+            print('enter if:', mynode, wnetwork[mynode] + weight <= wnetwork[thisnode])
         if(wnetwork[mynode] + weight <= wnetwork[thisnode]):
             wnetwork[thisnode] = wnetwork[mynode] + weight
             dadnetwork[thisnode] = mynode
@@ -734,6 +738,8 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     r.reverse()
     #Pop the last elements because this is the direction of nonexistent sink field
     l.pop(); r.pop()
+    if(thisApertureIndex == 155):
+        print('p al final: ', p)
     return(p, l, r)
 
 def parallelizationPricingProblem(i, C, C2, C3, b, vmax, speedlim, N, M, bw):
@@ -947,7 +953,7 @@ def colGen(C, WholeCircle, initialApertures):
             #epsilonflag = 0 # If some aperture was removed
             for thisindex in range(0, data.numbeams):
                 if thisindex in data.caligraphicC.loc: #Only activate what is an aperture
-                    if rmpres.x[thisindex] < 10E-3:
+                    if rmpres.x[thisindex] < 10E-2:
                         data.entryCounter += 1
                         # Remove from caligraphicC and add to notinC
                         data.notinC.insertAngle(thisindex, data.pointtoAngle[thisindex])

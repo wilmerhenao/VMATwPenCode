@@ -36,8 +36,7 @@ outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
 objfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/objectives/obj1.txt'
 structurefile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/structureInputs.txt'
 algfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/algInputsWilmer.txt'
-mm3voxels = rootFolder + '/Data/DataProject/HN/hn3mmvoxels.mat'
-# The 1 is subtracted at read time so the user doesn't have to do it everytime
+## Priority list of Organs of Interest. The 1 is subtracted at read time so the user doesn't have to do it everytime
 priority = [7, 24, 25, 23, 22, 21, 20, 16, 15, 14, 13, 12, 10, 11, 9, 4, 3, 1, 2, 17, 18, 19, 5, 6, 8]
 priority = (np.array(priority)-1).tolist()
 mylines = [line.rstrip('\n') for line in open('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/beamAngles.txt')]
@@ -807,7 +806,7 @@ def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M, bw):
     print("Best aperture was: ", bestApertureIndex)
     return(pstar, lallret, rallret, bestApertureIndex)
 
-def solveRMC():
+def solveRMC(YU):
     ## IPOPT SOLUTION
     start = time.time()
     numbe = data.caligraphicC.len()
@@ -827,7 +826,7 @@ def solveRMC():
     boundschoice = []
     for thisindex in range(0, data.numbeams):
         if thisindex in data.caligraphicC.loc: #Only activate what is an aperture
-            boundschoice.append((0, None))
+            boundschoice.append((0, YU))
         else:
             boundschoice.append((0, 0))
     res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds = boundschoice, options={'ftol':1e-3, 'disp':5,'maxiter':200})
@@ -891,8 +890,11 @@ def colGen(C, WholeCircle, initialApertures):
     ## Maximum leaf speed
     vmax = 2.25      # 2.25 cms per second
     speedlim = 0.83  # Values are in the VMATc paper page 2968. 0.85 < s < 6
-    beamletwidth = 0.5 #Width of the beamlet according to CORT pdf "Summary of Patient Characteristics"
-
+    beamletwidth = 0.5 # Width of the beamlet according to CORT pdf "Summary of Patient Characteristics"
+    ## Maximum Dose Rate
+    RU = 10.0
+    ## Maximum intensity
+    YU = RU / speedlim
 
     # Assign the most open apertures as initial apertures. They will not have any intensity applied to them.
     for i in range(0, data.numbeams):
@@ -946,7 +948,7 @@ def colGen(C, WholeCircle, initialApertures):
             data.rlist[bestApertureIndex] = rm
             # Precalculate the aperture map to save times.
             data.openApertureMaps[bestApertureIndex], data.diagmakers[bestApertureIndex] = updateOpenAperture(bestApertureIndex)
-            rmpres = solveRMC()
+            rmpres = solveRMC(YU)
             data.rmpres = rmpres
             #epsilonflag = 0 # If some aperture was removed
             for thisindex in range(0, data.numbeams):

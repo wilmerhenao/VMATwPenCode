@@ -37,7 +37,7 @@ readfolderD = readfolder + 'Dij/'
 ## Folder where to output results
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
 ## This is where objectives are located for the objective function to be minimized
-objfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/objectives/obj1.txt'
+objfile = '/media/wilmer/datadrive/HNdata180/objectives/obj1.txt'
 ## File describing what structures are targets and what structures are OAR's
 structurefile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/structureInputs.txt'
 ## Fila that contains basic algorithm inputs (not implemented)
@@ -46,7 +46,7 @@ algfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/algInputsWilmer.txt'
 priority = [7, 24, 25, 23, 22, 21, 20, 16, 15, 14, 13, 12, 10, 11, 9, 4, 3, 1, 2, 17, 18, 19, 5, 6, 8]
 priority = (np.array(priority)-1).tolist()
 mylines = [line.rstrip('\n') for line in open('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/beamAngles.txt')]
-eliminationThreshold = 10E-2
+eliminationThreshold = 10E-3
 ## Boolean. Are we going to use the full circle or not?
 WholeCircle = True
 
@@ -649,12 +649,12 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     leftrange = range(math.ceil(max(-1, lcm[0] - vmaxm * (angdistancem/speedlim)/bw , lcp[0] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N - 1, lcm[0] + vmaxm * (angdistancem/speedlim)/bw , lcp[0] + vmaxp * (angdistancep/speedlim)/bw )))
     # Check if unfeasible. If it is then assign one value but tell the result to the person running this
     if (0 == len(leftrange)):
-        print('constraint leftrange at level ' + str(0) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[0], angdistancem, lcp[0], angdistancep', lcm[0], angdistancem, lcp[0], angdistancep, '\nFull left limits, lcp, lcm:', lcp, lcm, 'm: ', 0, 'predecesor: ', predec, 'succesor: ', succ)
+        ##print('constraint leftrange at level ' + str(0) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[0], angdistancem, lcp[0], angdistancep', lcm[0], angdistancem, lcp[0], angdistancep, '\nFull left limits, lcp, lcm:', lcp, lcm, 'm: ', 0, 'predecesor: ', predec, 'succesor: ', succ)
         leftrange = range(math.ceil(max(-1, lcm[0] - vmaxm * (angdistancem/speedlim)/bw , lcp[0] - vmaxp * (angdistancep/speedlim)/bw )), math.ceil(max(-1, lcm[0] - vmaxm * (angdistancem/speedlim)/bw , lcp[0] - vmaxp * (angdistancep/speedlim)/bw )) + 1)
     for l in leftrange:
         rightrange = range(math.ceil(max(l + 1, rcm[0] - vmaxm * (angdistancem/speedlim)/bw , rcp[0] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N, rcm[0] + vmaxm * (angdistancem/speedlim)/bw , rcp[0] + vmaxp * (angdistancep/speedlim)/bw )))
         if (0 == len(rightrange)):
-            print('constraint rightrange at level ' + str(0) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[0], angdistancem, lcp[0], angdistancep', lcm[0], angdistancem, lcp[0], angdistancep, '\nFull left limits, rcp, rcm:', rcp, rcm, 'm: ', 0, 'predecesor: ', predec, 'succesor: ', succ)
+            ##print('constraint rightrange at level ' + str(0) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[0], angdistancem, lcp[0], angdistancep', lcm[0], angdistancem, lcp[0], angdistancep, '\nFull left limits, rcp, rcm:', rcp, rcm, 'm: ', 0, 'predecesor: ', predec, 'succesor: ', succ)
             rightrange = range(math.ceil(max(l + 1, rcm[0] - vmaxm * (angdistancem/speedlim)/bw , rcp[0] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.ceil(max(l + 1, rcm[0] - vmaxm * (angdistancem/speedlim)/bw , rcp[0] - vmaxp * (angdistancep/speedlim)/bw )))
         for r in rightrange:
             thisnode = thisnode + 1
@@ -672,7 +672,6 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 weight = 0.0
             # Create node (1,l,r) in array of existing nodes and update the counter
             # Replace the following expression
-            # networkNodes.append([1, l, r, weight, 0])
             lnetwork[thisnode] = l
             rnetwork[thisnode] = r
             wnetwork[thisnode] = weight
@@ -689,12 +688,12 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         leftrange = range(math.ceil(max(-1, lcm[m] - vmaxm * (angdistancem/speedlim)/bw , lcp[m] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N - 1, lcm[m] + vmaxm * (angdistancem/speedlim)/bw , lcp[m] + vmaxp * (angdistancep/speedlim)/bw )))
         # Check if unfeasible. If it is then assign one value but tell the result to the person running this
         if(0 == len(leftrange)):
-            print('constraint leftrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[m], angdistancem, lcp[m], angdistancep', lcm[m], angdistancem, lcp[m], angdistancep, '\nFull left limits, lcp, lcm:', lcp, lcm, 'm: ', m, 'predecesor: ', predec, 'succesor: ', succ)
+            ##print('constraint leftrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[m], angdistancem, lcp[m], angdistancep', lcm[m], angdistancem, lcp[m], angdistancep, '\nFull left limits, lcp, lcm:', lcp, lcm, 'm: ', m, 'predecesor: ', predec, 'succesor: ', succ)
             leftrange = range(math.ceil(max(-1, lcm[m] - vmaxm * (angdistancem/speedlim)/bw , lcp[m] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.ceil(max(-1, lcm[m] - vmaxm * (angdistancem/speedlim)/bw , lcp[m] - vmaxp * (angdistancep/speedlim)/bw )))
         for l in leftrange:
             rightrange = range(math.ceil(max(l + 1, rcm[m] - vmaxm * (angdistancem/speedlim)/bw , rcp[m] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N, rcm[m] + vmaxm * (angdistancem/speedlim)/bw , rcp[m] + vmaxp * (angdistancep/speedlim)/bw )))
             if (0 == len(rightrange)):
-                print('constraint rightrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[m], angdistancem, lcp[m], angdistancep', lcm[m], angdistancem, lcp[m], angdistancep, '\nFull left limits, rcp, rcm:', rcp, rcm, 'm: ', m, 'predecesor: ', predec, 'succesor: ', succ)
+                ##print('constraint rightrange at level ' + str(m) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[m], angdistancem, lcp[m], angdistancep', lcm[m], angdistancem, lcp[m], angdistancep, '\nFull left limits, rcp, rcm:', rcp, rcm, 'm: ', m, 'predecesor: ', predec, 'succesor: ', succ)
                 rightrange = range(math.ceil(max(l + 1, rcm[m] - vmaxm * (angdistancem/speedlim)/bw , rcp[m] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.ceil(max(l + 1, rcm[m] - vmaxm * (angdistancem/speedlim)/bw , rcp[m] - vmaxp * (angdistancep/speedlim)/bw )))
             for r in rightrange:
                 nodesinpreviouslevel = nodesinpreviouslevel + 1
@@ -971,6 +970,7 @@ def colGen(C, WholeCircle, initialApertures):
             for thisindex in range(0, data.numbeams):
                 if thisindex in data.caligraphicC.loc: #Only activate what is an aperture
                     if rmpres.x[thisindex] < eliminationThreshold:
+                        ## Maintain a tally of apertures that are being removed
                         data.entryCounter += 1
                         IndApRemovedThisStep.append(thisindex)
                         # Remove from caligraphicC and add to notinC
@@ -978,7 +978,9 @@ def colGen(C, WholeCircle, initialApertures):
                         data.caligraphicC.removeIndex(thisindex)
             if len(data.listIndexofAperturesRemovedEachStep) > 1:
                 ## Check if any element that I'm removing here was removed in the previous iteration and exit
-                if(np.any(np.in1d(IndApRemovedThisStep, data.listIndexofAperturesRemovedEachStep(len(data.listIndexofAperturesRemovedEachStep) - 1)))):
+                print('thisstep removed: ', IndApRemovedThisStep)
+                print('removed previously: ', data.listIndexofAperturesRemovedEachStep)
+                if(np.any(np.in1d(IndApRemovedThisStep, data.listIndexofAperturesRemovedEachStep[len(data.listIndexofAperturesRemovedEachStep) - 1]))):
                     print('Program finishes because it keeps selecting the same aperture to add and delete')
                     break
             ## Save all apertures that were removed in this step

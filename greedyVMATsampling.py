@@ -46,7 +46,7 @@ algfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/algInputsWilmer.txt'
 priority = [7, 24, 25, 23, 22, 21, 20, 16, 15, 14, 13, 12, 10, 11, 9, 4, 3, 1, 2, 17, 18, 19, 5, 6, 8]
 priority = (np.array(priority)-1).tolist()
 mylines = [line.rstrip('\n') for line in open('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/beamAngles.txt')]
-
+eliminationThreshold = 10E-2
 ## Boolean. Are we going to use the full circle or not?
 WholeCircle = True
 
@@ -954,6 +954,7 @@ def colGen(C, WholeCircle, initialApertures):
         # PP by c and Ac and replace caligraphic C and A = Abar, k \in caligraphicC
         if pstar >= 0:
             #This choice includes the case when no aperture was selected
+            print('Program finishes because no aperture was selected to enter')
             break
         else:
             data.caligraphicC.insertAngle(bestApertureIndex, data.notinC(bestApertureIndex))
@@ -969,13 +970,17 @@ def colGen(C, WholeCircle, initialApertures):
             IndApRemovedThisStep = []
             for thisindex in range(0, data.numbeams):
                 if thisindex in data.caligraphicC.loc: #Only activate what is an aperture
-                    if rmpres.x[thisindex] < 10E-2:
+                    if rmpres.x[thisindex] < eliminationThreshold:
                         data.entryCounter += 1
                         IndApRemovedThisStep.append(thisindex)
                         # Remove from caligraphicC and add to notinC
                         data.notinC.insertAngle(thisindex, data.pointtoAngle[thisindex])
                         data.caligraphicC.removeIndex(thisindex)
-
+            if len(data.listIndexofAperturesRemovedEachStep) > 1:
+                ## Check if any element that I'm removing here was removed in the previous iteration and exit
+                if(np.any(np.in1d(IndApRemovedThisStep, data.listIndexofAperturesRemovedEachStep(len(data.listIndexofAperturesRemovedEachStep) - 1)))):
+                    print('Program finishes because it keeps selecting the same aperture to add and delete')
+                    break
             ## Save all apertures that were removed in this step
             data.listIndexofAperturesRemovedEachStep.append(IndApRemovedThisStep)
             optimalvalues.append(rmpres.fun)

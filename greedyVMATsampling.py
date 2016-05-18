@@ -28,13 +28,19 @@ import sys
 # Set of apertures starting with 16 that are well spread out.
 kappa = [6, 17, 28, 39, 50, 61, 72, 83, 94, 105, 116, 127, 138, 149, 160, 171, 11, 22, 33, 44, 55, 66, 77, 88, 99, 110, 121, 132, 143, 154, 165, 1, 175, 14, 25, 36, 47, 58, 69, 80, 91, 102, 113, 124, 135, 146, 157, 168, 3, 8, 19, 30, 41, 52, 63, 74, 85, 96, 107, 118, 129, 140, 151, 162, 172, 176, 0, 2, 4, 5, 7, 9, 10, 12, 13, 15, 16, 18, 20, 21, 23, 24, 26, 27, 29, 31, 32, 34, 35, 37, 38, 40, 42, 43, 45, 46, 48, 49, 51, 53, 54, 56, 57, 59, 60, 62, 64, 65, 67, 68, 70, 71, 73, 75, 76, 78, 79, 81, 82, 84, 86, 87, 89, 90, 92, 93, 95, 97, 98, 100, 101, 103, 104, 106, 108, 109, 111, 112, 114, 115, 117, 119, 120, 122, 123, 125, 126, 128, 130, 131, 133, 134, 136, 137, 139, 141, 142, 144, 145, 147, 148, 150, 152, 153, 155, 156, 158, 159, 161, 163, 164, 166, 167, 169, 170, 173, 174, 177]
 
+## Where the data is stored
 rootFolder = '/media/wilmer/datadrive'
 #rootFolder = '/home/wilmer/Documents/Troy_BU'
 readfolder = rootFolder + '/Data/DataProject/HN/'
+## subfolder that contains the dose matrices
 readfolderD = readfolder + 'Dij/'
+## Folder where to output results
 outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
+## This is where objectives are located for the objective function to be minimized
 objfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/objectives/obj1.txt'
+## File describing what structures are targets and what structures are OAR's
 structurefile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/structureInputs.txt'
+## Fila that contains basic algorithm inputs (not implemented)
 algfile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/algInputsWilmer.txt'
 ## Priority list of Organs of Interest. The 1 is subtracted at read time so the user doesn't have to do it everytime
 priority = [7, 24, 25, 23, 22, 21, 20, 16, 15, 14, 13, 12, 10, 11, 9, 4, 3, 1, 2, 17, 18, 19, 5, 6, 8]
@@ -43,19 +49,27 @@ mylines = [line.rstrip('\n') for line in open('/home/wilmer/Dropbox/Research/VMA
 
 ## Boolean. Are we going to use the full circle or not?
 WholeCircle = True
+
+## Initial Angle
 gastart = 0 ;
+
+## Final Angle
 gaend = 356;
 if WholeCircle:
     gastep = 2;
 else:
+    ## Change this value and set WholeCircle to false if you just want to debug a subset of the data
     gastep = 20;
+## This vector allows users to convert locations into degree angles.
 pointtoAngle = range(gastart, gaend, gastep)
+
 ga=[];
 ca=[];
-
+## Contains all information relevant to a particular region
 class region:
-    """ Contains all information relevant to a particular region"""
+    ## index used for identification
     index = int()
+    ## Size in voxels of this particular structure
     sizeInVoxels = int()
     indices = np.empty(1, dtype=int)
     fullIndices = np.empty(1,dtype=int)
@@ -213,7 +227,8 @@ class vmat_class:
 
     ## Counts how many times I have entered the aperture replacement option
     entryCounter = 0
-
+    ## Maintain a list of apertures removed each iteration using the removal criterion
+    listIndexofAperturesRemovedEachStep = []
     def calcDose(self):
         self.currentDose = np.zeros(self.numvoxels, dtype = float)
         # dZdK will have a dimension that is numvoxels x numbeams
@@ -950,15 +965,19 @@ def colGen(C, WholeCircle, initialApertures):
             data.openApertureMaps[bestApertureIndex], data.diagmakers[bestApertureIndex] = updateOpenAperture(bestApertureIndex)
             rmpres = solveRMC(YU)
             data.rmpres = rmpres
-            #epsilonflag = 0 # If some aperture was removed
+            ## List of apertures that was removed in this iteration
+            IndApRemovedThisStep = []
             for thisindex in range(0, data.numbeams):
                 if thisindex in data.caligraphicC.loc: #Only activate what is an aperture
                     if rmpres.x[thisindex] < 10E-2:
                         data.entryCounter += 1
+                        IndApRemovedThisStep.append(thisindex)
                         # Remove from caligraphicC and add to notinC
                         data.notinC.insertAngle(thisindex, data.pointtoAngle[thisindex])
                         data.caligraphicC.removeIndex(thisindex)
 
+            ## Save all apertures that were removed in this step
+            data.listIndexofAperturesRemovedEachStep.append(IndApRemovedThisStep)
             optimalvalues.append(rmpres.fun)
             plotcounter = plotcounter + 1
             # Add everything from notinC to kappa

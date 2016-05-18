@@ -658,19 +658,20 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
             midpoint = (angdistancep * rcm[0] + angdistancem * rcp[0])/(angdistancep + angdistancem)
             rightrange = np.arange(midpoint, midpoint + 1)
             ##print('constraint rightrange at level ' + str(0) + ' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: lcm[0], angdistancem, lcp[0], angdistancep', lcm[0], angdistancem, lcp[0], angdistancep, '\nFull left limits, rcp, rcm:', rcp, rcm, 'm: ', 0, 'predecesor: ', predec, 'succesor: ', succ)
-            rightrange = range(math.ceil(max(l + 1, rcm[0] - vmaxm * (angdistancem/speedlim)/bw , rcp[0] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.ceil(max(l + 1, rcm[0] - vmaxm * (angdistancem/speedlim)/bw , rcp[0] - vmaxp * (angdistancep/speedlim)/bw )))
         for r in rightrange:
             thisnode = thisnode + 1
             nodesinpreviouslevel = nodesinpreviouslevel + 1
             # First I have to make sure to add the beamlets that I am interested in
             if(l + 1 < r): # prints r numbers starting from l + 1. So range(3,4) = 3
-                # Dose = -sum( D[[i for i in range(l+1, r)],:] * data.voxelgradient)
-                possiblebeamletsthisrow = np.intersect1d(range(l+1,r), validbeamlets) - min(validbeamlets)
+                ## Take integral pieces of the dose component
+                possiblebeamletsthisrow = np.intersect1d(range(np.ceil(l+1),np.floor(r)), validbeamlets) - min(validbeamlets)
+                ## Calculate dose on the sides
+                DoseSide = -((np.ceil(l+1) - (l+1)) * beamGrad[np.floor(l+1)] + (r - np.floor(r)) * beamGrad[np.ceil(r)])
                 if (len(possiblebeamletsthisrow) > 0):
                     Dose = -beamGrad[ possiblebeamletsthisrow ].sum()
-                    weight = C * ( C2 * (r - l) - C3 * b * (r - l)) - Dose + 10E-10 * (r-l) # The last term in order to prefer apertures opening in the center
+                    weight = C * ( C2 * (r - l) - C3 * b * (r - l)) - Dose + 10E-10 * (r-l) + DoseSide# The last term in order to prefer apertures opening in the center
                 else:
-                    weight = 0.0
+                    weight = C * ( C2 * (r - l) - C3 * b * (r - l)) + 10E-10 * (r-l) + DoseSide
             else:
                 weight = 0.0
             # Create node (1,l,r) in array of existing nodes and update the counter
@@ -710,8 +711,8 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 mnetwork[thisnode] = m
                 wnetwork[thisnode] = np.inf
                 # Select only those beamlets that are possible in between the (l,r) limits.
-                possiblebeamletsthisrow = np.intersect1d(range(l + 1, r), validbeamlets) + leftmostleaf - min(validbeamlets)
-
+                possiblebeamletsthisrow = np.intersect1d(range(np.ceil(l+1),np.floor(r)), validbeamlets) + leftmostleaf - min(validbeamlets)
+                DoseSide = -((np.ceil(l+1) - (l+1)) * beamGrad[np.floor(l+1)] + (r - np.floor(r)) * beamGrad[np.ceil(r)])
                 if(len(possiblebeamletsthisrow) > 0):
                     Dose = -beamGrad[possiblebeamletsthisrow].sum()
                     C3simplifier = C3 * b * (r - l)
@@ -719,10 +720,10 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                     Dose = 0.0
                     C3simplifier = 0.0
                 lambdaletter = np.absolute(lnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow] - l) + np.absolute(rnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow] - r) - 2 * np.maximum(0, lnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow] - r) - 2 * np.maximum(0, l - np.absolute(rnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow]))
-                weight = C * (C2 * lambdaletter - C3simplifier) - Dose  + 10E-10 * (r-l) # The last term in order to prefer apertures opening in the center
+                weight = C * (C2 * lambdaletter - C3simplifier) - Dose  + 10E-10 * (r-l) + DoseSide # The last term in order to prefer apertures opening in the center
                 # Add the weights that were just calculated
                 newweights = wnetwork[(posBeginningOfRow - oldflag): posBeginningOfRow] + weight
-                # Find the minimum and its position in the vector.
+                # Find the minimum and its position in the vector
                 minloc = np.argmin(newweights)
                 wnetwork[thisnode] = newweights[minloc]
                 dadnetwork[thisnode] = minloc + posBeginningOfRow - oldflag
@@ -1015,20 +1016,21 @@ def colGen(C, WholeCircle, initialApertures):
 # The idea is to have everything ready and pre-calculated for the evaluation of the objective function in
 # calcDose
 # input: i is the index number of the aperture that I'm working on
-# output: openaperturenp. the set of available AND open beamlets for the selected aperture
+# output: openaperturenp. the set of available AND open beamlets for the selected aperture. Doesn't contain fractional values
 #         diagmaker. A vector that has a 1 in each position where an openaperturebeamlet is available.
 # openaperturenp is read as openapertureMaps. A member of the VMAT_CLASS.
 def updateOpenAperture(i):
     leftlimits = 0
     openaperture = []
+    diagmaker = np.zeros(data.Dlist[i].shape[0], dtype = float)
     for m in range(0, len(data.llist[i])):
         # Find geographical values of llist and rlist.
         # Find geographical location of the first row.
         validbeamlets, validbeamletspecialrange = fvalidbeamlets(m, i)
-        # First index in this row
+        # First index in this row (only full beamlets included in this part
         if (data.llist[i][m] >= min(validbeamlets) -1):
             # I subtract min validbeamlets bec. I want to find coordinates in available space
-            indleft = data.llist[i][m] + 1 + leftlimits - min(validbeamlets)
+            indleft = np.ceil(data.llist[i][m]) + 1 + leftlimits - min(validbeamlets)
         else:
             # if the left limit is too far away to the left, just take what's available
             indleft = 0
@@ -1038,7 +1040,7 @@ def updateOpenAperture(i):
             indright = len(validbeamlets) + leftlimits
         else:
             if(data.rlist[i][m] >= min(validbeamlets)):
-                indright = data.rlist[i][m] - 1 + leftlimits - min(validbeamlets)
+                indright = np.floor(data.rlist[i][m]) - 1 + leftlimits - min(validbeamlets)
             else:
                 # Right limit is to the left of validbeamlets (This situation is weird)
                 indright = 0
@@ -1047,14 +1049,13 @@ def updateOpenAperture(i):
         leftlimits = leftlimits + len(validbeamlets)
         #print('indleft, data.llist[i][m], leftlimits, validbeam', indleft, data.llist[i][m], leftlimits, validbeamlets)
         if (indleft < indright + 1): # If the leaf opening is not completely close, and nothing weird happened
-            for thisbeamlet in range(indleft, indright):
+            for thisbeamlet in range(indleft, indright + 1):
                 openaperture.append(thisbeamlet)
+                diagmaker[thisbeamlet] = 1.0
+        if (indleft >= 0):
+            diagmaker[indleft - 1] = np.ceil(data.llist[i][m]) - data.llist[i][m]
+            diagmaker[indright + 1] =  data.rlist[i][m] - np.floor(data.rlist[i][m])
     openaperturenp = np.array(openaperture, dtype=int) #Contains indices of open beamlets in the aperture
-    diagmaker = np.zeros(data.Dlist[i].shape[0], dtype = float)
-    #print('openaperturenp', openaperturenp)
-    #print('its length:', len(openaperturenp))
-    #sys.exit('wilmer breaks it here')
-    diagmaker[[ij for ij in openaperturenp]] = 1.0
     return(openaperturenp, diagmaker)
 
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')

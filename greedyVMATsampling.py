@@ -232,17 +232,18 @@ class vmat_class:
     entryCounter = 0
     ## Maintain a list of apertures removed each iteration using the removal criterion
     listIndexofAperturesRemovedEachStep = []
-    ##
+    ## This function regularly enters the optimization engine to calculate the dose; Used for objective function
     def calcDose(self):
         self.currentDose = np.zeros(self.numvoxels, dtype = float)
         # dZdK will have a dimension that is numvoxels x numbeams
         self.dZdK = np.matrix(np.zeros((self.numvoxels, self.numbeams)))
         if self.caligraphicC.len() != 0:
             for i in self.caligraphicC.loc:
+                ## D[:, oam] * diag * R^{oam x numbeamlets}
                 self.currentDose += DlistT[i][:,self.openApertureMaps[i]] * sparse.diags(self.strengths[i]) * np.repeat(self.currentIntensities[i], len(self.openApertureMaps[i]), axis = 0)
                 self.dZdK[:,i] = (DlistT[i] * sparse.diags(self.diagmakers[i], 0)).sum(axis=1)
 
-
+    ## This function regularly enters the optimization engine to calculate objective function and gradients
     def calcGradientandObjValue(self):
         oDoseObj = self.currentDose - quadHelperThresh
         oDoseObjCl = (oDoseObj > 0) * oDoseObj
@@ -259,7 +260,7 @@ class vmat_class:
         oDoseObjGl = 2 * oDoseObjCl * quadHelperOver
         uDoseObjGl = 2 * uDoseObjCl * quadHelperUnder
 
-
+        # Notice that I use two types of gradients. One for voxels and one for apertures
         self.voxelgradient = 2 * (oDoseObjGl - uDoseObjGl)
         self.aperturegradient = (np.asmatrix(self.voxelgradient) * self.dZdK).transpose()
 
@@ -653,6 +654,12 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     # Work on the first row perimeter and area values
     leftrange = range(math.ceil(max(-1, lcm[0] - vmaxm * (angdistancem/speedlim)/bw , lcp[0] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N - 1, lcm[0] + vmaxm * (angdistancem/speedlim)/bw , lcp[0] + vmaxp * (angdistancep/speedlim)/bw )))
     # Check if unfeasible. If it is then assign one value but tell the result to the person running this
+    if (161 == thisApertureIndex):
+        print(' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: angdistancem, angdistancep', angdistancem, angdistancep, '\nFull left limits, lcp, lcm:', lcp, lcm, 'predecesor: ', predec, 'succesor: ', succ)
+        print('right limits before:', rcm)
+        print('right limits after: ', rcp)
+        print('left limits before: ', lcm)
+        print('left limits after   ', lcp)
     if (0 == len(leftrange)):
         midpoint = (angdistancep * lcm[0] + angdistancem * lcp[0])/(angdistancep + angdistancem)
         leftrange = np.arange(midpoint, midpoint + 1)
@@ -738,11 +745,12 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
         leftmostleaf = len(validbeamlets) + leftmostleaf
     # thisnode gets augmented only 1 because only the sink node will be added
     thisnode = thisnode + 1
-
+    if (161 == thisApertureIndex):
+        print(wnetwork[thisnode])
     for mynode in (range(posBeginningOfRow - nodesinpreviouslevel + 1, posBeginningOfRow)):
         weight = C * ( C2 * (rnetwork[mynode] - lnetwork[mynode] ))
-        if(thisApertureIndex == 155):
-            print('enter if:', mynode, wnetwork[mynode] + weight <= wnetwork[thisnode])
+        if (161 == thisApertureIndex):
+            print('wnetwork[mynode] and weight:', wnetwork[mynode], weight)
         if(wnetwork[mynode] + weight <= wnetwork[thisnode]):
             wnetwork[thisnode] = wnetwork[mynode] + weight
             dadnetwork[thisnode] = mynode
@@ -751,6 +759,8 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     l = []
     r = []
     while(1):
+        if (161 == thisApertureIndex):
+            print(thenode)
         # Find the predecessor data
         l.append(lnetwork[thenode])
         r.append(rnetwork[thenode])
@@ -1092,7 +1102,7 @@ before = time.time()
 # This is necessary for multiprocessing. Because if I pass into partial then I can't change
 # (Try to Figure out how to get rid of this)
 
-pstar = colGen(5, WholeCircle, kappasize)
+pstar = colGen(0, WholeCircle, kappasize)
 after = time.time()
 print("The whole process took: " , after - before)
 print('The whole program took: '  + str(time.time() - start) + ' seconds to finish')

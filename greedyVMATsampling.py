@@ -232,6 +232,7 @@ class vmat_class:
     entryCounter = 0
     ## Maintain a list of apertures removed each iteration using the removal criterion
     listIndexofAperturesRemovedEachStep = []
+    ##
     def calcDose(self):
         self.currentDose = np.zeros(self.numvoxels, dtype = float)
         # dZdK will have a dimension that is numvoxels x numbeams
@@ -1093,8 +1094,8 @@ before = time.time()
 
 pstar = colGen(5, WholeCircle, kappasize)
 after = time.time()
-print("The whole process took:" , after - before)
-print('The whole program took: '  + str(time.time()-start) + ' seconds to finish')
+print("The whole process took: " , after - before)
+print('The whole program took: '  + str(time.time() - start) + ' seconds to finish')
 
 ## Plotting apertures
 xcoor = math.ceil(math.sqrt(data.numbeams))
@@ -1104,6 +1105,10 @@ print('numbeams', data.numbeams)
 for mynumbeam in range(0, data.numbeams):
     l = data.llist[mynumbeam]
     r = data.rlist[mynumbeam]
+    ## Convert the limits to hundreds.
+    for posn in range(0, len(l)):
+        l[posn] = int(100 * l[posn])
+        r[posn] = int(100 * r[posn])
     image = np.zeros(nrows*ncols)
         # Reshape things into a 9x9 grid
     image = image.reshape((nrows, ncols))

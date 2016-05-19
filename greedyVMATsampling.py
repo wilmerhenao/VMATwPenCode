@@ -664,7 +664,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
             # First I have to make sure to add the beamlets that I am interested in
             if(l + 1 < r): # prints r numbers starting from l + 1. So range(3,4) = 3
                 ## Take integral pieces of the dose component
-                possiblebeamletsthisrow = np.intersect1d(range(np.ceil(l+1),np.floor(r)), validbeamlets) - min(validbeamlets)
+                possiblebeamletsthisrow = np.intersect1d(range(int(np.ceil(l+1)),int(np.floor(r))), validbeamlets) - min(validbeamlets)
                 ## Calculate dose on the sides
                 DoseSide = -((np.ceil(l+1) - (l+1)) * beamGrad[np.floor(l+1)] + (r - np.floor(r)) * beamGrad[np.ceil(r)])
                 if (len(possiblebeamletsthisrow) > 0):
@@ -711,7 +711,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 mnetwork[thisnode] = m
                 wnetwork[thisnode] = np.inf
                 # Select only those beamlets that are possible in between the (l,r) limits.
-                possiblebeamletsthisrow = np.intersect1d(range(np.ceil(l+1),np.floor(r)), validbeamlets) + leftmostleaf - min(validbeamlets)
+                possiblebeamletsthisrow = np.intersect1d(range(int(np.ceil(l+1)),int(np.floor(r))), validbeamlets) + leftmostleaf - min(validbeamlets)
                 DoseSide = -((np.ceil(l+1) - (l+1)) * beamGrad[np.floor(l+1)] + (r - np.floor(r)) * beamGrad[np.ceil(r)])
                 if(len(possiblebeamletsthisrow) > 0):
                     Dose = -beamGrad[possiblebeamletsthisrow].sum()
@@ -1022,15 +1022,20 @@ def colGen(C, WholeCircle, initialApertures):
 def updateOpenAperture(i):
     leftlimits = 0
     openaperture = []
+    ## While openaperturenp contains positions, openapertureStrength contains proportion of the beamlets that's open.
+    openapertureStrength = []
     diagmaker = np.zeros(data.Dlist[i].shape[0], dtype = float)
     for m in range(0, len(data.llist[i])):
         # Find geographical values of llist and rlist.
         # Find geographical location of the first row.
         validbeamlets, validbeamletspecialrange = fvalidbeamlets(m, i)
         # First index in this row (only full beamlets included in this part
-        if (data.llist[i][m] >= min(validbeamlets) -1):
-            # I subtract min validbeamlets bec. I want to find coordinates in available space
-            indleft = np.ceil(data.llist[i][m]) + 1 + leftlimits - min(validbeamlets)
+
+        ## Notice that indleft and indright below may be floats instead of just integers
+        if (data.llist[i][m] >= min(validbeamlets) - 1):
+            ## I subtract min validbeamlets bec. I want to find coordinates in available space
+            ## indleft is where the edge of the left leaf ends. From there on there are photons.
+            indleft = data.llist[i][m] + 1 + leftlimits - min(validbeamlets)
         else:
             # if the left limit is too far away to the left, just take what's available
             indleft = 0
@@ -1040,7 +1045,8 @@ def updateOpenAperture(i):
             indright = len(validbeamlets) + leftlimits
         else:
             if(data.rlist[i][m] >= min(validbeamlets)):
-                indright = np.floor(data.rlist[i][m]) - 1 + leftlimits - min(validbeamlets)
+                ## indright is where the edgo of the right leaf ends. From there on there are photons
+                indright = data.rlist[i][m] - 1 + leftlimits - min(validbeamlets)
             else:
                 # Right limit is to the left of validbeamlets (This situation is weird)
                 indright = 0
@@ -1048,15 +1054,28 @@ def updateOpenAperture(i):
         # Keep the location of the letftmost leaf
         leftlimits = leftlimits + len(validbeamlets)
         #print('indleft, data.llist[i][m], leftlimits, validbeam', indleft, data.llist[i][m], leftlimits, validbeamlets)
-        if (indleft < indright + 1): # If the leaf opening is not completely close, and nothing weird happened
-            for thisbeamlet in range(indleft, indright + 1):
+        if (np.floor(indleft) < np.ceil(indright)): ## Just a necessary logical check.
+            first = True
+            for thisbeamlet in range(int(np.floor(indleft)), int(np.ceil(indright))):
+                strength = 1.0
+                if first:
+                    first = False
+                    # Fix the proportion of the left beamlet that is open
+                    strength = np.ceil(indleft) - indleft
+                openapertureStrength.append(strength)
                 openaperture.append(thisbeamlet)
                 diagmaker[thisbeamlet] = 1.0
-        if (indleft >= 0):
-            diagmaker[indleft - 1] = np.ceil(data.llist[i][m]) - data.llist[i][m]
-            diagmaker[indright + 1] =  data.rlist[i][m] - np.floor(data.rlist[i][m])
+            ## Fix the proportion of the right beamlet that is open.
+            strength = indright - np.floor(indright)
+            if strength > 0.01:
+                openapertureStrength[-1] = strength
+
+            ## One last scenario. If only a little bit of the aperture is open (less than a beamlet and within one beamlet
+            if 1 == int(np.ceil(indright)) - int(np.floor(indleft)):
+                strength = indright - indleft
+                openapertureStrength[-1] = strength
     openaperturenp = np.array(openaperture, dtype=int) #Contains indices of open beamlets in the aperture
-    return(openaperturenp, diagmaker)
+    return(openaperturenp, diagmaker, openapertureStrength)
 
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')
 

@@ -48,6 +48,7 @@ priority = (np.array(priority)-1).tolist()
 mylines = [line.rstrip('\n') for line in open('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/beamAngles.txt')]
 eliminationThreshold = 10E-3
 ## Boolean. Are we going to use the full circle or not?
+kappasize = 16
 WholeCircle = True
 
 ## Initial Angle
@@ -59,7 +60,7 @@ if WholeCircle:
     gastep = 2;
 else:
     ## Change this value and set WholeCircle to false if you just want to debug a subset of the data
-    gastep = 20;
+    gastep = 60;
 ## This vector allows users to convert locations into degree angles.
 pointtoAngle = range(gastart, gaend, gastep)
 
@@ -218,6 +219,8 @@ class vmat_class:
     openApertureMaps = []
     ## Contains data to create the diagonal matrices to process the gradient
     diagmakers = []
+    ## Contains the strengths of the beamlet. Has same length as diagmakers and openApertureMaps
+    strengths = []
     dZdK = 0.0
     ## This vector produces the angle corresponding to a particular index
     pointtoAngle = []
@@ -235,7 +238,7 @@ class vmat_class:
         self.dZdK = np.matrix(np.zeros((self.numvoxels, self.numbeams)))
         if self.caligraphicC.len() != 0:
             for i in self.caligraphicC.loc:
-                self.currentDose += DlistT[i][:,self.openApertureMaps[i]] * np.repeat(self.currentIntensities[i], len(self.openApertureMaps[i]), axis = 0)
+                self.currentDose += DlistT[i][:,self.openApertureMaps[i]] * sparse.diags(self.strengths[i]) * np.repeat(self.currentIntensities[i], len(self.openApertureMaps[i]), axis = 0)
                 self.dZdK[:,i] = (DlistT[i] * sparse.diags(self.diagmakers[i], 0)).sum(axis=1)
 
 
@@ -449,6 +452,7 @@ for i in range(0, data.numbeams):
         data.yinter = np.intersect1d(data.yinter, data.ydirection[i])
     data.openApertureMaps.append([]) #Just start an empty map of apertures
     data.diagmakers.append([])
+    data.strengths.append([])
 ## After reading the beaminfo information. Read CUT the data.
 
 N = len(data.yinter) #N will be related to the Y axis.
@@ -969,7 +973,7 @@ def colGen(C, WholeCircle, initialApertures):
             data.llist[bestApertureIndex] = lm
             data.rlist[bestApertureIndex] = rm
             # Precalculate the aperture map to save times.
-            data.openApertureMaps[bestApertureIndex], data.diagmakers[bestApertureIndex] = updateOpenAperture(bestApertureIndex)
+            data.openApertureMaps[bestApertureIndex], data.diagmakers[bestApertureIndex], data.strengths[bestApertureIndex] = updateOpenAperture(bestApertureIndex)
             rmpres = solveRMC(YU)
             data.rmpres = rmpres
             ## List of apertures that was removed in this iteration
@@ -1063,17 +1067,21 @@ def updateOpenAperture(i):
                     # Fix the proportion of the left beamlet that is open
                     strength = np.ceil(indleft) - indleft
                 openapertureStrength.append(strength)
+                diagmaker[thisbeamlet] = strength
                 openaperture.append(thisbeamlet)
-                diagmaker[thisbeamlet] = 1.0
             ## Fix the proportion of the right beamlet that is open.
             strength = indright - np.floor(indright)
             if strength > 0.01:
+                ## Important: There is no need to check if there exists a last element because after all, you already
+                # checked whe you entered the if loop above this one
                 openapertureStrength[-1] = strength
+                diagmaker[-1] = strength
 
             ## One last scenario. If only a little bit of the aperture is open (less than a beamlet and within one beamlet
             if 1 == int(np.ceil(indright)) - int(np.floor(indleft)):
                 strength = indright - indleft
                 openapertureStrength[-1] = strength
+                diagmaker[-1] = strength
     openaperturenp = np.array(openaperture, dtype=int) #Contains indices of open beamlets in the aperture
     return(openaperturenp, diagmaker, openapertureStrength)
 
@@ -1083,7 +1091,7 @@ before = time.time()
 # This is necessary for multiprocessing. Because if I pass into partial then I can't change
 # (Try to Figure out how to get rid of this)
 
-pstar = colGen(5, WholeCircle, 16)
+pstar = colGen(5, WholeCircle, kappasize)
 after = time.time()
 print("The whole process took:" , after - before)
 print('The whole program took: '  + str(time.time()-start) + ' seconds to finish')

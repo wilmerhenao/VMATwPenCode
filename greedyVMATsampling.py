@@ -35,7 +35,7 @@ readfolder = rootFolder + '/Data/DataProject/HN/'
 ## subfolder that contains the dose matrices
 readfolderD = readfolder + 'Dij/'
 ## Folder where to output results
-outputfolder = '/home/wilmer/Dropbox/Research/VMAT/output/'
+outputfolder = '/home/wilmer/Dropbox/Research/IMRTOptimizer/output/'
 ## This is where objectives are located for the objective function to be minimized
 objfile = '/media/wilmer/datadrive/HNdata180/objectives/obj1.txt'
 ## File describing what structures are targets and what structures are OAR's
@@ -49,6 +49,8 @@ mylines = [line.rstrip('\n') for line in open('/home/wilmer/Dropbox/Research/VMA
 eliminationThreshold = 10E-3
 ## Boolean. Are we going to use the full circle or not?
 kappasize = 16
+## This is the number of cores to use
+numcores = 6
 WholeCircle = True
 
 ## Initial Angle
@@ -491,7 +493,7 @@ def readDmatrix(i):
 
 # Read the data in parallel
 if __name__ == '__main__':
-    pool = Pool(processes=8)              # process per MP
+    pool = Pool(processes=6)              # process per MP
     Allmats = pool.map(readDmatrix, range(0, data.numbeams))
 
 # Assign data
@@ -655,7 +657,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     leftrange = range(math.ceil(max(-1, lcm[0] - vmaxm * (angdistancem/speedlim)/bw , lcp[0] - vmaxp * (angdistancep/speedlim)/bw )), 1 + math.floor(min(N - 1, lcm[0] + vmaxm * (angdistancem/speedlim)/bw , lcp[0] + vmaxp * (angdistancep/speedlim)/bw )))
     # Check if unfeasible. If it is then assign one value but tell the result to the person running this
     if (161 == thisApertureIndex):
-        print(' aperture ' + str(thisApertureIndex) + ' could not be met', 'ERROR Report: angdistancem, angdistancep', angdistancem, angdistancep, '\nFull left limits, lcp, lcm:', lcp, lcm, 'predecesor: ', predec, 'succesor: ', succ)
+        print(' aperture ' + str(thisApertureIndex), 'ERROR Report: angdistancem, angdistancep', angdistancem, angdistancep, '\nFull left limits:', 'predecesor: ', predec, 'succesor: ', succ)
         print('right limits before:', rcm)
         print('right limits after: ', rcp)
         print('left limits before: ', lcm)
@@ -742,12 +744,16 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
 
         posBeginningOfRow = nodesinpreviouslevel + posBeginningOfRow # This is the total number of network nodes
         # Keep the location of the leftmost leaf
+        if (161 == thisApertureIndex):
+            print('posbeginningofrow, nodesinpreviouslevel and m', posBeginningOfRow, nodesinpreviouslevel, m)
         leftmostleaf = len(validbeamlets) + leftmostleaf
     # thisnode gets augmented only 1 because only the sink node will be added
     thisnode = thisnode + 1
     if (161 == thisApertureIndex):
-        print(wnetwork[thisnode])
-    for mynode in (range(posBeginningOfRow - nodesinpreviouslevel + 1, posBeginningOfRow)):
+        print('wnetwork[thisnode]', wnetwork[thisnode])
+        print('posbeginingofrow', posBeginningOfRow, 'nodesinpreviouslevel', nodesinpreviouslevel)
+        print(range(posBeginningOfRow - nodesinpreviouslevel + 1, posBeginningOfRow))
+    for mynode in (range(posBeginningOfRow - nodesinpreviouslevel + 1, posBeginningOfRow + 1)): # +1 because otherwise it could be empty
         weight = C * ( C2 * (rnetwork[mynode] - lnetwork[mynode] ))
         if (161 == thisApertureIndex):
             print('wnetwork[mynode] and weight:', wnetwork[mynode], weight)
@@ -760,7 +766,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     r = []
     while(1):
         if (161 == thisApertureIndex):
-            print(thenode)
+            print('here is node:', thenode)
         # Find the predecessor data
         l.append(lnetwork[thenode])
         r.append(rnetwork[thenode])
@@ -771,7 +777,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     r.reverse()
     #Pop the last elements because this is the direction of nonexistent sink field
     l.pop(); r.pop()
-    if(thisApertureIndex == 155):
+    if(thisApertureIndex == 161):
         print('p al final: ', p)
     return(p, l, r)
 
@@ -822,7 +828,7 @@ def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M, bw):
 
     partialparsubpp = partial(parallelizationPricingProblem, C=C, C2=C2, C3=C3, b=b, vmax=vmax, speedlim=speedlim, N=N, M=M, bw=bw)
     if __name__ == '__main__':
-        pool = Pool(processes=8)              # process per MP
+        pool = Pool(processes=numcores)              # process per MP
         respool = pool.map(partialparsubpp, data.notinC.loc)
     pool.close()
     pool.join()

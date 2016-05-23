@@ -50,7 +50,7 @@ eliminationThreshold = 10E-3
 ## Boolean. Are we going to use the full circle or not?
 kappasize = 16
 ## This is the number of cores to use
-numcores = 6
+numcores = 8
 WholeCircle = True
 
 ## Initial Angle
@@ -752,8 +752,8 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
     if (161 == thisApertureIndex):
         print('wnetwork[thisnode]', wnetwork[thisnode])
         print('posbeginingofrow', posBeginningOfRow, 'nodesinpreviouslevel', nodesinpreviouslevel)
-        print(range(posBeginningOfRow - nodesinpreviouslevel + 1, posBeginningOfRow))
-    for mynode in (range(posBeginningOfRow - nodesinpreviouslevel + 1, posBeginningOfRow + 1)): # +1 because otherwise it could be empty
+        print(range(posBeginningOfRow - nodesinpreviouslevel, posBeginningOfRow))
+    for mynode in (range(posBeginningOfRow - nodesinpreviouslevel, posBeginningOfRow )): # +1 because otherwise it could be empty
         weight = C * ( C2 * (rnetwork[mynode] - lnetwork[mynode] ))
         if (161 == thisApertureIndex):
             print('wnetwork[mynode] and weight:', wnetwork[mynode], weight)

@@ -1119,27 +1119,26 @@ xcoor = math.ceil(math.sqrt(data.numbeams))
 ycoor = math.ceil(math.sqrt(data.numbeams))
 nrows, ncols = M,N
 print('numbeams', data.numbeams)
+magnifier = 100
+YU = (10.0 / 0.83)
 for mynumbeam in range(0, data.numbeams):
     l = data.llist[mynumbeam]
     r = data.rlist[mynumbeam]
     ## Convert the limits to hundreds.
     for posn in range(0, len(l)):
-        l[posn] = int(100 * l[posn])
-        r[posn] = int(100 * r[posn])
-    image = np.zeros(100 * nrows * ncols)
+        l[posn] = int(magnifier * l[posn])
+        r[posn] = int(magnifier * r[posn])
+    image = np.zeros(magnifier * nrows * ncols)
         # Reshape things into a 9x9 grid
-    image = image.reshape((nrows, 100 * ncols))
+    image = image.reshape((nrows, magnifier * ncols))
     for i in range(0, M):
         image[i, l[i]:(r[i]-1)] = data.rmpres.x[mynumbeam]
-    print('image', image)
+    image = np.repeat(image, magnifier, axis = 0) # Repeat. Otherwise the figure will look flat like a pancake
+    image[0,0] = YU # In order to get the right list of colors
     # Set up a location where to save the figure
     fig = plt.figure(1)
     plt.subplot(ycoor,xcoor, mynumbeam + 1)
-    plt.plot()
-    plt.imshow(image)
-    #plt.axis('off')
-    #plt.show()
-    pickle.dump(image, open("/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/wilmersave.p", "wb"))
+    plt.imshow(image, cmap = plt.get_cmap("afmhot"))
 fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/plotofapertures.png')
 
 ## Plotting apertures

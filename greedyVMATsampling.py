@@ -1128,7 +1128,7 @@ for mynumbeam in range(0, data.numbeams):
     for posn in range(0, len(l)):
         l[posn] = int(magnifier * l[posn])
         r[posn] = int(magnifier * r[posn])
-    image = np.zeros(magnifier * nrows * ncols)
+    image = -1 * np.ones(magnifier * nrows * ncols)
         # Reshape things into a 9x9 grid
     image = image.reshape((nrows, magnifier * ncols))
     for i in range(0, M):
@@ -1138,7 +1138,9 @@ for mynumbeam in range(0, data.numbeams):
     # Set up a location where to save the figure
     fig = plt.figure(1)
     plt.subplot(ycoor,xcoor, mynumbeam + 1)
-    plt.imshow(image, cmap = plt.get_cmap("afmhot"))
+    cmapper = plt.get_cmap("autumn_r")
+    cmapper.set_under('black', 1.0)
+    plt.imshow(image, cmap = cmapper, vmin = 0.0, vmax = YU)
 fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/plotofapertures.png')
 
 ## Plotting apertures

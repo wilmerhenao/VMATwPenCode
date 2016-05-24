@@ -24,6 +24,7 @@ from multiprocessing import Pool
 from functools import partial
 import random
 import sys
+import pickle
 
 # Set of apertures starting with 16 that are well spread out.
 kappa = [6, 17, 28, 39, 50, 61, 72, 83, 94, 105, 116, 127, 138, 149, 160, 171, 11, 22, 33, 44, 55, 66, 77, 88, 99, 110, 121, 132, 143, 154, 165, 1, 175, 14, 25, 36, 47, 58, 69, 80, 91, 102, 113, 124, 135, 146, 157, 168, 3, 8, 19, 30, 41, 52, 63, 74, 85, 96, 107, 118, 129, 140, 151, 162, 172, 176, 0, 2, 4, 5, 7, 9, 10, 12, 13, 15, 16, 18, 20, 21, 23, 24, 26, 27, 29, 31, 32, 34, 35, 37, 38, 40, 42, 43, 45, 46, 48, 49, 51, 53, 54, 56, 57, 59, 60, 62, 64, 65, 67, 68, 70, 71, 73, 75, 76, 78, 79, 81, 82, 84, 86, 87, 89, 90, 92, 93, 95, 97, 98, 100, 101, 103, 104, 106, 108, 109, 111, 112, 114, 115, 117, 119, 120, 122, 123, 125, 126, 128, 130, 131, 133, 134, 136, 137, 139, 141, 142, 144, 145, 147, 148, 150, 152, 153, 155, 156, 158, 159, 161, 163, 164, 166, 167, 169, 170, 173, 174, 177]
@@ -51,7 +52,7 @@ eliminationThreshold = 10E-3
 kappasize = 16
 ## This is the number of cores to use
 numcores = 8
-WholeCircle = True
+WholeCircle = False
 
 ## Initial Angle
 gastart = 0 ;
@@ -62,7 +63,7 @@ if WholeCircle:
     gastep = 2;
 else:
     ## Change this value and set WholeCircle to false if you just want to debug a subset of the data
-    gastep = 60;
+    gastep = 80;
 ## This vector allows users to convert locations into degree angles.
 pointtoAngle = range(gastart, gaend, gastep)
 
@@ -1130,13 +1131,15 @@ for mynumbeam in range(0, data.numbeams):
     image = image.reshape((nrows, 100 * ncols))
     for i in range(0, M):
         image[i, l[i]:(r[i]-1)] = data.rmpres.x[mynumbeam]
+    print('image', image)
     # Set up a location where to save the figure
     fig = plt.figure(1)
     plt.subplot(ycoor,xcoor, mynumbeam + 1)
-    #plt.plot([4, 5, 6])
+    plt.plot()
     plt.imshow(image)
-    plt.axis('off')
+    #plt.axis('off')
     #plt.show()
+    pickle.dump(image, open("/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/wilmersave.p", "wb"))
 fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/plotofapertures.png')
 
 ## Plotting apertures
@@ -1148,19 +1151,14 @@ for mynumbeam in range(0, data.numbeams):
     l = data.llist[mynumbeam]
     r = data.rlist[mynumbeam]
     image = np.zeros(nrows*ncols)
-        # Reshape things into a 9x9 grid
     image = image.reshape((nrows, ncols))
     for i in range(0, M):
         image[i, l[i]:(r[i]-1)] = data.rmpres.x[mynumbeam]
-    # Set up a location where to save the figure
     fig = plt.figure(1)
     plt.subplot(ycoor,xcoor, mynumbeam + 1)
-    #plt.plot([4, 5, 6])
     plt.imshow(image)
     plt.axis('off')
-    #plt.show()
-
-fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/thisplotoldandweird.png')
+fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/oldplot.png')
 
 print('You removed apertures using the removal criterion a total of: ', data.entryCounter, ' times')
 print("You have graciously finished running this program")

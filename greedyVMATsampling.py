@@ -1125,6 +1125,28 @@ for mynumbeam in range(0, data.numbeams):
     for posn in range(0, len(l)):
         l[posn] = int(100 * l[posn])
         r[posn] = int(100 * r[posn])
+    image = np.zeros(100 * nrows * ncols)
+        # Reshape things into a 9x9 grid
+    image = image.reshape((nrows, 100 * ncols))
+    for i in range(0, M):
+        image[i, l[i]:(r[i]-1)] = data.rmpres.x[mynumbeam]
+    # Set up a location where to save the figure
+    fig = plt.figure(1)
+    plt.subplot(ycoor,xcoor, mynumbeam + 1)
+    #plt.plot([4, 5, 6])
+    plt.imshow(image)
+    plt.axis('off')
+    #plt.show()
+fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/plotofapertures.png')
+
+## Plotting apertures
+xcoor = math.ceil(math.sqrt(data.numbeams))
+ycoor = math.ceil(math.sqrt(data.numbeams))
+nrows, ncols = M,N
+print('numbeams', data.numbeams)
+for mynumbeam in range(0, data.numbeams):
+    l = data.llist[mynumbeam]
+    r = data.rlist[mynumbeam]
     image = np.zeros(nrows*ncols)
         # Reshape things into a 9x9 grid
     image = image.reshape((nrows, ncols))
@@ -1138,6 +1160,7 @@ for mynumbeam in range(0, data.numbeams):
     plt.axis('off')
     #plt.show()
 
-fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/thisplot.png')
+fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/thisplotoldandweird.png')
+
 print('You removed apertures using the removal criterion a total of: ', data.entryCounter, ' times')
 print("You have graciously finished running this program")

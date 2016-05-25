@@ -911,7 +911,7 @@ def printresults(iterationNumber, myfolder):
     plt.ylabel('Fractional Volume')
     plt.title('Iteration: ' + str(iterationNumber))
     plt.legend(allNames)
-    plt.savefig(myfolder + 'DVH-at-Iteration' + str(iterationNumber) + 'greedyVMAT.png')
+    plt.savefig(myfolder + 'DVH-for-debugging-greedyVMAT.png')
     plt.close()
 
     voitoplot = [0, 18, 23, 17, 2, 8]
@@ -923,7 +923,7 @@ def printresults(iterationNumber, myfolder):
     plt.title('VMAT Iteration:' + str(iterationNumber))
     #allNames.reverse()
     plt.legend([allNames[i] for i in voitoplot])
-    plt.savefig(myfolder + 'DVH-at-Iteration-Subplot' + str(iterationNumber) + 'greedyVMAT.png')
+    plt.savefig(myfolder + 'DVH-at-Iteration-Subplot-for-debugging-greedyVMAT.png')
     plt.close()
 
 def colGen(C, WholeCircle, initialApertures):
@@ -1103,14 +1103,6 @@ def updateOpenAperture(i):
     openaperturenp = np.array(openaperture, dtype=int) #Contains indices of open beamlets in the aperture
     return(openaperturenp, diagmaker, openapertureStrength)
 
-print('Preparation time took: ' + str(time.time()-start) + ' seconds')
-
-before = time.time()
-
-pstar = colGen(0, WholeCircle, kappasize)
-after = time.time()
-print("The whole process took: " , after - before)
-print('The whole program took: '  + str(time.time() - start) + ' seconds to finish')
 
 def plotApertures():
     magnifier = 100
@@ -1142,6 +1134,15 @@ def plotApertures():
         plt.imshow(image, cmap = cmapper, vmin = 0.0, vmax = YU)
         plt.axis('off')
     fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/plotofapertures.png')
+
+print('Preparation time took: ' + str(time.time()-start) + ' seconds')
+
+before = time.time()
+pstar = colGen(0, WholeCircle, kappasize)
+after = time.time()
+
+print("The whole process took: " , after - before)
+print('The whole program took: '  + str(time.time() - start) + ' seconds to finish')
 
 print('You removed apertures using the removal criterion a total of: ', data.entryCounter, ' times')
 print("You have graciously finished running this program")

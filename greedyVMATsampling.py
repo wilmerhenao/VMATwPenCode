@@ -890,7 +890,6 @@ def printresults(iterationNumber, myfolder):
         bin_center = np.arange(0,dose_ub,dose_resln)
         # Generate holder matrix
         dvh_matrix = np.zeros((data.numstructs, len(bin_center)))
-        lenintervalhalf = bin_center[1]/2
         # iterate through each structure
         for s in range(0,data.numstructs):
             allNames[s] = allNames[s].replace("_VOILIST.mat", "")
@@ -1032,6 +1031,12 @@ def colGen(C, WholeCircle, initialApertures):
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
             #notinC and denote the final set of fluence rates by yk
     plotApertures()
+    ## Save to a pickle file and later plotting
+    datasave = [data.numbeams, data.rmpres, C, C2, C3, vmax, speedlim, RU, YU, M, N, data.llist, data.rlist,
+                data.fullMaskValue, data.currentDose, data.currentIntensities, data.numstructs, allNames]
+    PIK = "pickle-C-" + str(C) + "-WholeCirCle-" + str(WholeCircle) + "-Kappa-" + str(kappasize) + "save.dat"
+    with open(PIK, "wb") as f:
+        pickle.dump(datasave, f)
     return(pstar)
 
 ## This function returns the set of available AND open beamlets for the selected aperture (i).
@@ -1103,7 +1108,6 @@ def updateOpenAperture(i):
     openaperturenp = np.array(openaperture, dtype=int) #Contains indices of open beamlets in the aperture
     return(openaperturenp, diagmaker, openapertureStrength)
 
-
 def plotApertures():
     magnifier = 100
     ## Plotting apertures
@@ -1143,6 +1147,5 @@ after = time.time()
 
 print("The whole process took: " , after - before)
 print('The whole program took: '  + str(time.time() - start) + ' seconds to finish')
-
 print('You removed apertures using the removal criterion a total of: ', data.entryCounter, ' times')
 print("You have graciously finished running this program")

@@ -63,7 +63,7 @@ if WholeCircle:
     gastep = 2;
 else:
     ## Change this value and set WholeCircle to false if you just want to debug a subset of the data
-    gastep = 80;
+    gastep = 100;
 ## This vector allows users to convert locations into degree angles.
 pointtoAngle = range(gastart, gaend, gastep)
 
@@ -1031,7 +1031,7 @@ def colGen(C, WholeCircle, initialApertures):
             printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
             #notinC and denote the final set of fluence rates by yk
-
+    plotApertures()
     return(pstar)
 
 ## This function returns the set of available AND open beamlets for the selected aperture (i).
@@ -1106,60 +1106,42 @@ def updateOpenAperture(i):
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')
 
 before = time.time()
-# This is necessary for multiprocessing. Because if I pass into partial then I can't change
-# (Try to Figure out how to get rid of this)
 
 pstar = colGen(0, WholeCircle, kappasize)
 after = time.time()
 print("The whole process took: " , after - before)
 print('The whole program took: '  + str(time.time() - start) + ' seconds to finish')
 
-## Plotting apertures
-xcoor = math.ceil(math.sqrt(data.numbeams))
-ycoor = math.ceil(math.sqrt(data.numbeams))
-nrows, ncols = M,N
-print('numbeams', data.numbeams)
-magnifier = 100
-YU = (10.0 / 0.83)
-for mynumbeam in range(0, data.numbeams):
-    l = data.llist[mynumbeam]
-    r = data.rlist[mynumbeam]
-    ## Convert the limits to hundreds.
-    for posn in range(0, len(l)):
-        l[posn] = int(magnifier * l[posn])
-        r[posn] = int(magnifier * r[posn])
-    image = -1 * np.ones(magnifier * nrows * ncols)
-        # Reshape things into a 9x9 grid
-    image = image.reshape((nrows, magnifier * ncols))
-    for i in range(0, M):
-        image[i, l[i]:(r[i]-1)] = data.rmpres.x[mynumbeam]
-    image = np.repeat(image, magnifier, axis = 0) # Repeat. Otherwise the figure will look flat like a pancake
-    image[0,0] = YU # In order to get the right list of colors
-    # Set up a location where to save the figure
-    fig = plt.figure(1)
-    plt.subplot(ycoor,xcoor, mynumbeam + 1)
-    cmapper = plt.get_cmap("autumn_r")
-    cmapper.set_under('black', 1.0)
-    plt.imshow(image, cmap = cmapper, vmin = 0.0, vmax = YU)
-fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/plotofapertures.png')
-
-## Plotting apertures
-xcoor = math.ceil(math.sqrt(data.numbeams))
-ycoor = math.ceil(math.sqrt(data.numbeams))
-nrows, ncols = M,N
-print('numbeams', data.numbeams)
-for mynumbeam in range(0, data.numbeams):
-    l = data.llist[mynumbeam]
-    r = data.rlist[mynumbeam]
-    image = np.zeros(nrows*ncols)
-    image = image.reshape((nrows, ncols))
-    for i in range(0, M):
-        image[i, l[i]:(r[i]-1)] = data.rmpres.x[mynumbeam]
-    fig = plt.figure(1)
-    plt.subplot(ycoor,xcoor, mynumbeam + 1)
-    plt.imshow(image)
-    plt.axis('off')
-fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/oldplot.png')
+def plotApertures():
+    magnifier = 100
+    ## Plotting apertures
+    xcoor = math.ceil(math.sqrt(data.numbeams))
+    ycoor = math.ceil(math.sqrt(data.numbeams))
+    nrows, ncols = M,N
+    print('numbeams', data.numbeams)
+    YU = (10.0 / 0.83)
+    for mynumbeam in range(0, data.numbeams):
+        l = data.llist[mynumbeam]
+        r = data.rlist[mynumbeam]
+        ## Convert the limits to hundreds.
+        for posn in range(0, len(l)):
+            l[posn] = int(magnifier * l[posn])
+            r[posn] = int(magnifier * r[posn])
+        image = -1 * np.ones(magnifier * nrows * ncols)
+            # Reshape things into a 9x9 grid
+        image = image.reshape((nrows, magnifier * ncols))
+        for i in range(0, M):
+            image[i, l[i]:(r[i]-1)] = data.rmpres.x[mynumbeam]
+        image = np.repeat(image, magnifier, axis = 0) # Repeat. Otherwise the figure will look flat like a pancake
+        image[0,0] = YU # In order to get the right list of colors
+        # Set up a location where to save the figure
+        fig = plt.figure(1)
+        plt.subplot(ycoor,xcoor, mynumbeam + 1)
+        cmapper = plt.get_cmap("autumn_r")
+        cmapper.set_under('black', 1.0)
+        plt.imshow(image, cmap = cmapper, vmin = 0.0, vmax = YU)
+        plt.axis('off')
+    fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/plotofapertures.png')
 
 print('You removed apertures using the removal criterion a total of: ', data.entryCounter, ' times')
 print("You have graciously finished running this program")

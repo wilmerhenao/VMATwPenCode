@@ -52,7 +52,7 @@ eliminationThreshold = 10E-3
 kappasize = 16
 ## This is the number of cores to use
 numcores = 8
-WholeCircle = False
+WholeCircle = True
 
 ## Initial Angle
 gastart = 0 ;
@@ -1030,13 +1030,16 @@ def colGen(C, WholeCircle, initialApertures):
             printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
             #notinC and denote the final set of fluence rates by yk
-    plotApertures()
+    plotApertures(C)
     ## Save to a pickle file and later plotting
-    datasave = [data.numbeams, data.rmpres, C, C2, C3, vmax, speedlim, RU, YU, M, N, data.llist, data.rlist,
-                data.fullMaskValue, data.currentDose, data.currentIntensities, data.numstructs, allNames]
-    PIK = "pickle-C-" + str(C) + "-WholeCirCle-" + str(WholeCircle) + "-Kappa-" + str(kappasize) + "save.dat"
+    datasave = [data.numbeams, data.rmpres.x, C, C2, C3, vmax, speedlim, RU, YU, M, N, data.llist, data.rlist,
+                data.fullMaskValue, data.currentDose, data.currentIntensities, data.numstructs, allNames,
+                data.objectiveValue, quadHelperThresh, quadHelperOver, quadHelperUnder, data.regionIndices,
+                data.targets, data.oars]
+    PIK = "/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/pickle-C-" + str(C) + "-WholeCirCle-" + str(WholeCircle) + "-Kappa-" + str(kappasize) + "-save.dat"
     with open(PIK, "wb") as f:
-        pickle.dump(datasave, f)
+        pickle.dump(datasave, f, pickle.HIGHEST_PROTOCOL)
+    f.close()
     return(pstar)
 
 ## This function returns the set of available AND open beamlets for the selected aperture (i).
@@ -1108,7 +1111,7 @@ def updateOpenAperture(i):
     openaperturenp = np.array(openaperture, dtype=int) #Contains indices of open beamlets in the aperture
     return(openaperturenp, diagmaker, openapertureStrength)
 
-def plotApertures():
+def plotApertures(C):
     magnifier = 100
     ## Plotting apertures
     xcoor = math.ceil(math.sqrt(data.numbeams))
@@ -1137,12 +1140,13 @@ def plotApertures():
         cmapper.set_under('black', 1.0)
         plt.imshow(image, cmap = cmapper, vmin = 0.0, vmax = YU)
         plt.axis('off')
-    fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/plotofapertures.png')
+    fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/plotofapertures'+ str(C) + '.png')
 
 print('Preparation time took: ' + str(time.time()-start) + ' seconds')
 
 before = time.time()
-pstar = colGen(0, WholeCircle, kappasize)
+for iter in np.arange(0, 5, 0.5):
+    pstar = colGen(iter, WholeCircle, kappasize)
 after = time.time()
 
 print("The whole process took: " , after - before)

@@ -133,6 +133,7 @@ for iter in np.arange(0, 5, 0.5):
         sys.exit('Error:no file found')
     printresults(fullMaskValue, currentDose, numstructs, allNames, myfolder, C)
     plotApertures(C, numbeams, M, N, YU, llist, rlist, x, myfolder)
+    print('objective Value:', objectiveValue)
 
 #def load(filename):
 #    with open(filename, "rb") as f:

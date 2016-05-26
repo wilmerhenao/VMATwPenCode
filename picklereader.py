@@ -31,9 +31,7 @@ def plotApertures(C, numbeams, M, N, YU, llist, rlist, x, myfolder):
     print('numbeams', numbeams)
     for mynumbeam in range(0, numbeams):
         l = llist[mynumbeam]
-        print(l)
         r = rlist[mynumbeam]
-        print(r)
         ## Convert the limits to hundreds.
         #for posn in range(0, len(l)):
             #l[posn] = int(magnifier * l[posn])

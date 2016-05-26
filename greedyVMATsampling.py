@@ -52,7 +52,7 @@ eliminationThreshold = 10E-3
 kappasize = 16
 ## This is the number of cores to use
 numcores = 8
-WholeCircle = True
+WholeCircle = False
 
 ## Initial Angle
 gastart = 0 ;
@@ -63,7 +63,7 @@ if WholeCircle:
     gastep = 2;
 else:
     ## Change this value and set WholeCircle to false if you just want to debug a subset of the data
-    gastep = 100;
+    gastep = 10;
 ## This vector allows users to convert locations into degree angles.
 pointtoAngle = range(gastart, gaend, gastep)
 
@@ -1124,13 +1124,13 @@ def plotApertures(C):
         r = data.rlist[mynumbeam]
         ## Convert the limits to hundreds.
         for posn in range(0, len(l)):
-            l[posn] = int(magnifier * l[posn])
-            r[posn] = int(magnifier * r[posn])
+            lmag[posn] = int(magnifier * lmag[posn])
+            rmag[posn] = int(magnifier * rmag[posn])
         image = -1 * np.ones(magnifier * nrows * ncols)
             # Reshape things into a 9x9 grid
         image = image.reshape((nrows, magnifier * ncols))
         for i in range(0, M):
-            image[i, l[i]:(r[i]-1)] = data.rmpres.x[mynumbeam]
+            image[i, lmag[i]:(rmag[i]-1)] = data.rmpres.x[mynumbeam]
         image = np.repeat(image, magnifier, axis = 0) # Repeat. Otherwise the figure will look flat like a pancake
         image[0,0] = YU # In order to get the right list of colors
         # Set up a location where to save the figure

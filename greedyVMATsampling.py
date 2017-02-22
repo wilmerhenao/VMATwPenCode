@@ -19,7 +19,6 @@ import math
 import pylab
 import matplotlib.pyplot as plt
 from itertools import chain
-from numba import jit
 from multiprocessing import Pool
 from functools import partial
 import random
@@ -30,15 +29,13 @@ import pickle
 kappa = [6, 17, 28, 39, 50, 61, 72, 83, 94, 105, 116, 127, 138, 149, 160, 171, 11, 22, 33, 44, 55, 66, 77, 88, 99, 110, 121, 132, 143, 154, 165, 1, 175, 14, 25, 36, 47, 58, 69, 80, 91, 102, 113, 124, 135, 146, 157, 168, 3, 8, 19, 30, 41, 52, 63, 74, 85, 96, 107, 118, 129, 140, 151, 162, 172, 176, 0, 2, 4, 5, 7, 9, 10, 12, 13, 15, 16, 18, 20, 21, 23, 24, 26, 27, 29, 31, 32, 34, 35, 37, 38, 40, 42, 43, 45, 46, 48, 49, 51, 53, 54, 56, 57, 59, 60, 62, 64, 65, 67, 68, 70, 71, 73, 75, 76, 78, 79, 81, 82, 84, 86, 87, 89, 90, 92, 93, 95, 97, 98, 100, 101, 103, 104, 106, 108, 109, 111, 112, 114, 115, 117, 119, 120, 122, 123, 125, 126, 128, 130, 131, 133, 134, 136, 137, 139, 141, 142, 144, 145, 147, 148, 150, 152, 153, 155, 156, 158, 159, 161, 163, 164, 166, 167, 169, 170, 173, 174, 177]
 
 ## Where the data is stored
-rootFolder = '/media/wilmer/datadrive'
-#rootFolder = '/home/wilmer/Documents/Troy_BU'
-readfolder = rootFolder + '/Data/DataProject/HN/'
+readfolder = '/home/wilmer/Dropbox/MATdata/DataProject/HN/'
 ## subfolder that contains the dose matrices
 readfolderD = readfolder + 'Dij/'
 ## Folder where to output results
 outputfolder = '/home/wilmer/Dropbox/Research/IMRTOptimizer/output/'
 ## This is where objectives are located for the objective function to be minimized
-objfile = '/media/wilmer/datadrive/HNdata180/objectives/obj1.txt'
+objfile = readfolder + 'obj1.txt'
 ## File describing what structures are targets and what structures are OAR's
 structurefile = '/home/wilmer/Dropbox/IpOptSolver/TestData/HNdata/structureInputs.txt'
 ## Fila that contains basic algorithm inputs (not implemented)
@@ -52,6 +49,8 @@ eliminationThreshold = 10E-3
 kappasize = 16
 ## This is the number of cores to use
 numcores = 8
+
+## Whether this run will include the whole circle
 WholeCircle = False
 
 ## Initial Angle
@@ -69,16 +68,20 @@ pointtoAngle = range(gastart, gaend, gastep)
 
 ga=[];
 ca=[];
-## Contains all information relevant to a particular region
+
+## Contains all information relevant to a particular region, how many voxels and their location in relevant arrays.
 class region:
     ## index used for identification
     index = int()
     ## Size in voxels of this particular structure
     sizeInVoxels = int()
+    ## vector of maskvalue-indicated indices for non-overlapping structure assignment
     indices = np.empty(1, dtype=int)
+    ## vector of fullmaskvalue-indicated indicies for complete structure assignment
     fullIndices = np.empty(1,dtype=int)
+    ## True if target
     target = False
-    # Class constructor
+    ## Class initializer
     def __init__(self, iind, iindi, ifullindi, itarget):
         self.index = iind
         self.sizeInVoxels = len(iindi)
@@ -289,6 +292,9 @@ for thisline in mylines:
 # voxels
 
 start = time.time()
+
+## This class contains all variables. At this point it is implemented as a class with only static variables. This will
+# change in figure versions.
 data = vmat_class()
 
 data.outputDirectory = outputfolder # given by the user in the first lines of *.pydoc
@@ -297,23 +303,25 @@ data.pointtoAngle = pointtoAngle
 # Function definitions
 ####################################################################
 
+## This function returns a dictionary with the dimension in voxel
+# units for x,y,z axis. This function uses a unique txt file assigned by the
 def readctvoxelinfo():
-    # This function returns a dictionary with the dimension in voxel
-    # units for x,y,z axis
-
     lines = [line.rstrip('\n') for line in open(readfolder + 'CTVOXEL_INFO.txt')]
     tempocoor = []
     for i in range(0,3):
         tempocoor.append(int(lines[i].rsplit(None, 1)[-1]))
     coordims = dict(x=tempocoor[0],y=tempocoor[1],z=tempocoor[2])
     return(coordims)
-#########################################•••••••••###########################
+
 oldfolder = os.getcwd()
 os.chdir(readfolder)
+## Keep a log of all volumes of interest
 allFiles = glob.glob("*VOILIST.mat")
 allBeamInfos = glob.glob("*Couch0_BEAMINFO.mat")
+## Will contain all VOI names
 allNames = sorted(allFiles) #Make sure it's sorted because it was not.
 allBeamInfoNames = sorted(allBeamInfos)
+## How many structures of interest are included in this case.
 numStructs = len(allFiles)
 
 # This is "big voxel space" where some voxels may receive no dose or
@@ -341,15 +349,13 @@ data.voxelAssignment[:] = np.NAN
 counter = 0
 for i in range(0, numVoxels):
     if(bigZ[i] > 0):
-        # If big space voxel is nonzero, save to small vxl space
+        ## If big space voxel is nonzero, save to small vxl space
         data.voxelAssignment[counter] = i
         counter+=1
 print('mapping from small voxel space to big voxel space done')
 
 # originalVoxels is the mapping from big voxel space to small voxel
-# space
-
-# It is VERY important to initialize originalVoxels with NAN in this case.
+# space. It is VERY important to initialize originalVoxels with NAN in this case.
 # Or you can make an error since 0 is a valid position in python.
 originalVoxels = np.empty(numVoxels); originalVoxels[:] = np.NAN
 for i in range(0, nVox.astype(np.int64)):
@@ -369,7 +375,10 @@ data.targets = invec[(5+data.numstructs):(5+2*data.numstructs)]
 data.oars = invec[(5+2*data.numstructs):(5+3*(data.numstructs))]
 print('Finished reading structures')
 
+
+## Full masking value using 64 bits (Up to 48 structures)
 maskValueFull = np.zeros(nVox.astype(np.int64))
+## Most important masking value only.
 maskValueSingle = np.zeros(nVox.astype(np.int64))
 # this priority is the order of priority for assigning a single structure per
 # voxel (from least to most important)
@@ -460,7 +469,9 @@ for i in range(0, data.numbeams):
     data.strengths.append([])
 ## After reading the beaminfo information. Read CUT the data.
 
+## Number of beamlets in a row
 N = len(data.yinter) #N will be related to the Y axis.
+## Number of rows in an aperture
 M = len(data.xinter) #M will be related to the X axis.
 
 ###################################################
@@ -477,6 +488,9 @@ data.Dmat = sparse.csr_matrix((data.numX, data.numvoxels), dtype=float)
 overallDijsCounter = 0
 data.Dlist = [None] * data.numbeams
 DlistT = [None] * data.numbeams
+
+## This function reads the dose to points matrices. It also cuts them since extended versions of the algorithm cannot
+# be implemented yet.
 def readDmatrix(i):
     fname = 'Gantry' + str(ga[i]) + '_Couch' + str(0) + '_D.mat'
     print('Reading matrix from gantry & couch angle: ' + fname)
@@ -567,7 +581,6 @@ for s in range(0, data.numstructs):
         quadHelperThresh[int(data.regions[s].indices[j])] = functionData[0][s]
         quadHelperOver[int(data.regions[s].indices[j])] = functionData[1][s]
         quadHelperUnder[int(data.regions[s].indices[j])] = functionData[2][s]
-
 
 def calcObjGrad(x, user_data = None):
     data.currentIntensities = x
@@ -872,6 +885,7 @@ def solveRMC(YU):
             boundschoice.append((0, YU))
         else:
             boundschoice.append((0, 0))
+    print(len(data.currentIntensities), len(boundschoice))
     res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds = boundschoice, options={'ftol':1e-3, 'disp':5,'maxiter':200})
 
     print('Restricted Master Problem solved in ' + str(time.time() - start) + ' seconds')
@@ -984,6 +998,7 @@ def colGen(C, WholeCircle, initialApertures):
             print('Program finishes because no aperture was selected to enter')
             break
         else:
+            # Update caligraphic C.
             data.caligraphicC.insertAngle(bestApertureIndex, data.notinC(bestApertureIndex))
             data.notinC.removeIndex(bestApertureIndex)
             # Solve the instance of the RMP associated with caligraphicC and Ak = A_k^bar, k \in
@@ -991,7 +1006,7 @@ def colGen(C, WholeCircle, initialApertures):
             data.rlist[bestApertureIndex] = rm
             # Precalculate the aperture map to save times.
             data.openApertureMaps[bestApertureIndex], data.diagmakers[bestApertureIndex], data.strengths[bestApertureIndex] = updateOpenAperture(bestApertureIndex)
-            rmpres = solveRMC(YU)
+            rmpres = solveRMC(YU) # Solve Restricted Master Problem.
             data.rmpres = rmpres
             ## List of apertures that was removed in this iteration
             IndApRemovedThisStep = []
@@ -1004,11 +1019,18 @@ def colGen(C, WholeCircle, initialApertures):
                         # Remove from caligraphicC and add to notinC
                         data.notinC.insertAngle(thisindex, data.pointtoAngle[thisindex])
                         data.caligraphicC.removeIndex(thisindex)
+            print('Indapremoved this step:')
+            print(IndApRemovedThisStep)
             if len(data.listIndexofAperturesRemovedEachStep) > 1:
                 ## Check if any element that I'm removing here was removed in the previous iteration and exit
                 print('thisstep removed: ', IndApRemovedThisStep)
                 print('removed previously: ', data.listIndexofAperturesRemovedEachStep)
+                # Discuss this condition with Marina.
                 if(np.any(np.in1d(IndApRemovedThisStep, data.listIndexofAperturesRemovedEachStep[len(data.listIndexofAperturesRemovedEachStep) - 1]))):
+                    print('Program finishes because it keeps selecting the same aperture to add and delete')
+                    break
+                # Do the same with two steps back.
+                if(np.any(np.in1d(IndApRemovedThisStep, data.listIndexofAperturesRemovedEachStep[len(data.listIndexofAperturesRemovedEachStep) - 2]))):
                     print('Program finishes because it keeps selecting the same aperture to add and delete')
                     break
             ## Save all apertures that were removed in this step
@@ -1120,10 +1142,10 @@ def plotApertures(C):
     print('numbeams', data.numbeams)
     YU = (10.0 / 0.83)
     for mynumbeam in range(0, data.numbeams):
-        l = data.llist[mynumbeam]
-        r = data.rlist[mynumbeam]
+        lmag = data.llist[mynumbeam]
+        rmag = data.rlist[mynumbeam]
         ## Convert the limits to hundreds.
-        for posn in range(0, len(l)):
+        for posn in range(0, len(lmag)):
             lmag[posn] = int(magnifier * lmag[posn])
             rmag[posn] = int(magnifier * rmag[posn])
         image = -1 * np.ones(magnifier * nrows * ncols)
@@ -1142,11 +1164,36 @@ def plotApertures(C):
         plt.axis('off')
     fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/plotofapertures'+ str(C) + '.png')
 
-print('Preparation time took: ' + str(time.time()-start) + ' seconds')
+print('Preparation time took: ' + str
+(time.time()-start) + ' seconds')
 
 before = time.time()
-for iter in np.arange(0, 5, 0.5):
+# Do the dirty work of calling the function and collect the results to be saved
+for iter in np.arange(0.5, 15, 1):
     pstar = colGen(iter, WholeCircle, kappasize)
+    ## Reinitialize everything for the next iteration
+    data.objectiveValue = np.inf
+    data.currentDose = np.empty(1) # dose variable
+    data.currentIntensities = np.zeros(data.numbeams, dtype = float)
+    data.llist = []
+    data.rlist = []
+    data.rmpres = []
+    data.voxelgradient = []
+    data.aperturegradient = []
+    ## List of apertures not yet selected
+    data.notinC = apertureList()
+    ## List of apertures already selected
+    data.caligraphicC = apertureList()
+    data.openApertureMaps = []
+    data.diagmakers = []
+    data.strengths = []
+    for i in range(0, data.numbeams):
+        data.openApertureMaps.append([])
+        data.diagmakers.append([])
+        data.strengths.append([])
+    data.dZdK = 0.0
+    data.entryCounter = 0
+    data.listIndexofAperturesRemovedEachStep = []
 after = time.time()
 
 print("The whole process took: " , after - before)

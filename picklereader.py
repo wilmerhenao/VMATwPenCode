@@ -9,13 +9,14 @@ except ImportError:
 
 import glob, os
 import numpy as np
-from scipy.optimize import minimize, rosen, rosen_der
+from scipy.optimize import minimize
 import time
 import math
 import pylab
 import matplotlib.pyplot as plt
 import pickle
 import sys
+import itertools
 
 WholeCircle = False
 kappasize = 16
@@ -96,7 +97,11 @@ def printresults(fullMaskValue, currentDose, numstructs, allNames, myfolder, C):
     plt.savefig(myfolder + 'DVH-Subplot-VMAT-C-' + str(C) + '.png')
     plt.close()
 
-for iter in np.arange(0, 5, 0.5):
+qualities = []
+Cvalues = []
+a = np.arange(0.5, 3.5, 1.0)
+b = np.arange(15.55, 55.55, 10)
+for iter in itertools.chain(a,b):
     PIK = myfolder + "pickle-C-" + str(iter) + "-WholeCirCle-" + str(WholeCircle) + "-Kappa-" + str(kappasize) + "-save.dat"
     print(PIK)
     try:
@@ -131,34 +136,13 @@ for iter in np.arange(0, 5, 0.5):
         f.close()
     except IOError:
         sys.exit('Error:no file found')
-    printresults(fullMaskValue, currentDose, numstructs, allNames, myfolder, C)
-    plotApertures(C, numbeams, M, N, YU, llist, rlist, x, myfolder)
+    #printresults(fullMaskValue, currentDose, numstructs, allNames, myfolder, C)
+    #plotApertures(C, numbeams, M, N, YU, llist, rlist, x, myfolder)
+    qualities.append(objectiveValue)
+    Cvalues.append(C)
     print('objective Value:', objectiveValue)
-
-#def load(filename):
-#    with open(filename, "rb") as f:
-#        while True:
-#            try:
-#                yield pickle.load(f)
-#            except EOFError:
-#                print('error')
-#                break
-
-#class something(object):
-#    def __init__(self, name, value):
-#        self.name = name
-#        self.value = value
-#l = [1,2,3,4]
-#b = something('obama', 42)
-#r = "hi"
-# x0 = [1.3, 0.7, 0.8, 1.9, 1.2]
-# res = minimize(rosen, x0, method='Nelder-Mead')
-#
-# with open('somefile.pkl', 'wb') as output:
-#     pickle.dump([l, b, r, x0, res], output, pickle.HIGHEST_PROTOCOL)
-# output.close()
-# with open('somefile.pkl', 'rb') as input:
-#     items = pickle.load(input)
-# input.close()
-# print(items[0], items[2], items[1].name, items[4])
-#
+plt.plot(Cvalues, qualities, 'ro')
+plt.suptitle('Objective Value and C', fontsize=20)
+plt.xlabel('C = Shape penalization coefficient', fontsize=18)
+plt.ylabel('Optimal Objective Value', fontsize=16)
+plt.show()

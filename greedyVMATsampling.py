@@ -30,7 +30,7 @@ kappa = [6, 17, 28, 39, 50, 61, 72, 83, 94, 105, 116, 127, 138, 149, 160, 171, 1
 ## Where the data is stored
 IntheOffice = '/mnt/datadrive/Data/DataProject/HN/'
 AtHome = '/home/wilmer/Dropbox/MATdata/DataProject/HN/'
-readfolder = IntheOffice
+readfolder = AtHome
 ## subfolder that contains the dose matrices
 readfolderD = readfolder + 'Dij/'
 ## Folder where to output results
@@ -325,7 +325,7 @@ bigZ = np.zeros(numVoxels, dtype=int)
 # Vorg is a list of the structure voxels in big voxel space
 for s in range(0, numStructs):
     Vorg.append(sio.loadmat(allNames[s])['v']-1) # correct 1 position mat2Py.
-    bigZ[Vorg[s]] = 1.0
+    bigZ[Vorg[s]] = 1.0 # Here I'm assigning a 1 to those voxels that belong in small voxel space also.
 
 # nVox is "small voxel space", with only the voxels that have
 # structures assigned (basically non-air/couch voxels)
@@ -365,7 +365,7 @@ data.targets = invec[(5+data.numstructs):(5+2*data.numstructs)]
 data.oars = invec[(5+2*data.numstructs):(5+3*(data.numstructs))]
 print('Finished reading structures')
 
-
+# Below, stands which organ the voxel belongs to.
 ## Full masking value using 64 bits (Up to 48 structures)
 maskValueFull = np.zeros(nVox.astype(np.int64))
 ## Most important masking value only.
@@ -429,6 +429,7 @@ nDIJSPB = np.zeros(len(ga))
 ## Beginning of Troy's cpp code (interpreted, not copied)
 ## A comment
 ## This comes from first two lines in doseInputs txt file (troy's version)
+## CAREFUL. Now numvoxels refers to small voxels space
 data.numvoxels = nVox
 data.numbeams = len(ga)
 ## Allocate memory

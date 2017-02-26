@@ -488,8 +488,8 @@ def readDmatrix(i):
     # extract voxel, beamlet indices and dose values
     D = sio.loadmat(fname)['D']
     # write out bixel sorted binary file
-    [b,j,d] = sparse.find(D)
-    newb = originalVoxels[b]
+    #[b,j,d] = sparse.find(D)
+    #newb = originalVoxels[b]
     # write out voxel sorted binary file
     [jt,bt,dt] = sparse.find(D.transpose())
     newbt = originalVoxels[bt]

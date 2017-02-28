@@ -16,6 +16,8 @@ from scipy import sparse
 from scipy.optimize import minimize
 import time
 import math
+import matplotlib as mpl
+mpl.use('Agg')
 import pylab
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
@@ -488,8 +490,8 @@ def readDmatrix(i):
     # extract voxel, beamlet indices and dose values
     D = sio.loadmat(fname)['D']
     # write out bixel sorted binary file
-    #[b,j,d] = sparse.find(D)
-    #newb = originalVoxels[b]
+    [b,j,d] = sparse.find(D)
+    newb = originalVoxels[b]
     # write out voxel sorted binary file
     [jt,bt,dt] = sparse.find(D.transpose())
     newbt = originalVoxels[bt]
@@ -524,7 +526,7 @@ for i in range(0, data.numbeams):
     data.beamletsPerBeam[i] = len(ininter)
     beamletCounter[i+1] = beamletCounter[i] + data.beamletsPerBeam[i]
 
-data.numX = sum(data.beamletsPerBeam)
+
 
 #### MATRIX CUT DONE Here all matrices are working with the same limits
 
@@ -685,7 +687,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 ## Take integral pieces of the dose component
                 possiblebeamletsthisrow = np.intersect1d(range(int(np.ceil(l+1)),int(np.floor(r))), validbeamlets) - min(validbeamlets)
                 ## Calculate dose on the sides
-                DoseSide = -((np.ceil(l+1) - (l+1)) * beamGrad[np.floor(l+1)] + (r - np.floor(r)) * beamGrad[np.ceil(r)])
+                DoseSide = -((np.ceil(l+1) - (l+1)) * beamGrad[int(np.floor(l+1))] + (r - np.floor(r)) * beamGrad[int(np.ceil(r))])
                 if (len(possiblebeamletsthisrow) > 0):
                     Dose = -beamGrad[ possiblebeamletsthisrow ].sum()
                     weight = C * ( C2 * (r - l) - C3 * b * (r - l)) - Dose + 10E-10 * (r-l) + DoseSide# The last term in order to prefer apertures opening in the center
@@ -731,7 +733,7 @@ def PPsubroutine(C, C2, C3, b, angdistancem, angdistancep, vmax, speedlim, prede
                 wnetwork[thisnode] = np.inf
                 # Select only those beamlets that are possible in between the (l,r) limits.
                 possiblebeamletsthisrow = np.intersect1d(range(int(np.ceil(l+1)),int(np.floor(r))), validbeamlets) + leftmostleaf - min(validbeamlets)
-                DoseSide = -((np.ceil(l+1) - (l+1)) * beamGrad[np.floor(l+1)] + (r - np.floor(r)) * beamGrad[np.ceil(r)])
+                DoseSide = -((np.ceil(l+1) - (l+1)) * beamGrad[int(np.floor(l+1))] + (r - np.floor(r)) * beamGrad[int(np.ceil(r))])
                 if(len(possiblebeamletsthisrow) > 0):
                     Dose = -beamGrad[possiblebeamletsthisrow].sum()
                     C3simplifier = C3 * b * (r - l)
@@ -877,7 +879,7 @@ def solveRMC(YU):
         else:
             boundschoice.append((0, 0))
     print(len(data.currentIntensities), len(boundschoice))
-    res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds = boundschoice, options={'ftol':1e-3, 'disp':5,'maxiter':200})
+    res = minimize(calcObjGrad, data.currentIntensities, method='L-BFGS-B', jac = True, bounds = boundschoice, options={'ftol':1e-1, 'disp':5,'maxiter':200})
 
     print('Restricted Master Problem solved in ' + str(time.time() - start) + ' seconds')
     return(res)
@@ -933,6 +935,7 @@ def printresults(iterationNumber, myfolder):
 def colGen(C, WholeCircle, initialApertures):
     C2 = 1.0
     C3 = 1.0
+    eliminationPhase = False
 
     ## Maximum leaf speed
     vmax = 2.25      # 2.25 cms per second
@@ -1003,7 +1006,7 @@ def colGen(C, WholeCircle, initialApertures):
             IndApRemovedThisStep = []
             for thisindex in range(0, data.numbeams):
                 if thisindex in data.caligraphicC.loc: #Only activate what is an aperture
-                    if rmpres.x[thisindex] < eliminationThreshold:
+                    if (rmpres.x[thisindex] < eliminationThreshold) & (eliminationPhase):
                         ## Maintain a tally of apertures that are being removed
                         data.entryCounter += 1
                         IndApRemovedThisStep.append(thisindex)
@@ -1043,7 +1046,7 @@ def colGen(C, WholeCircle, initialApertures):
             printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/')
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
             #notinC and denote the final set of fluence rates by yk
-    plotApertures(C)
+            plotApertures(C)
     ## Save to a pickle file and later plotting
     datasave = [data.numbeams, data.rmpres.x, C, C2, C3, vmax, speedlim, RU, YU, M, N, data.llist, data.rlist,
                 data.fullMaskValue, data.currentDose, data.currentIntensities, data.numstructs, allNames,
@@ -1155,12 +1158,11 @@ def plotApertures(C):
         plt.axis('off')
     fig.savefig('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/plotofapertures'+ str(C) + '.png')
 
-print('Preparation time took: ' + str
-(time.time()-start) + ' seconds')
+print('Preparation time took: ' + str(time.time() - start) + ' seconds')
 
 before = time.time()
 # Do the dirty work of calling the function and collect the results to be saved
-for iter in np.arange(0.5, 15, 1):
+for iter in np.arange(500.5, 501.5, 1):
     pstar = colGen(iter, WholeCircle, kappasize)
     ## Reinitialize everything for the next iteration
     data.objectiveValue = np.inf

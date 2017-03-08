@@ -481,7 +481,7 @@ data.Dmat = sparse.csr_matrix((data.numX, data.numvoxels), dtype=float)
 overallDijsCounter = 0
 data.Dlist = [None] * data.numbeams
 DlistT = [None] * data.numbeams
-
+penalizationweights = [None] * data.numbeams
 ## This function reads the dose to points matrices. It also cuts them since extended versions of the algorithm cannot
 # be implemented yet.
 def readDmatrix(i):
@@ -847,6 +847,7 @@ def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M, bw):
     lallret = bestgroup[1]
     rallret = bestgroup[2]
     bestApertureIndex = bestgroup[3]
+    penalizationweights[bestApertureIndex] = pstar
     for i in range(0, len(respool)):
         if(M != len(respool[i][1])):
             sys.exit("Length of left vector is less than 28")
@@ -916,11 +917,12 @@ def printresults(iterationNumber, myfolder):
     plt.xlabel('Dose Gray')
     plt.ylabel('Fractional Volume')
     plt.title('Iteration: ' + str(iterationNumber))
-    plt.legend(allNames)
+    plt.legend(allNames,prop={'size':9})
     plt.savefig(myfolder + 'DVH-for-debugging-greedyVMAT.png')
     plt.close()
 
-    voitoplot = [0, 18, 23, 17, 2, 8]
+    #voitoplot = [19, 18, 11, 17, 2, 19]
+    voitoplot = [18, 7, 12, 13, 14, 15, 19, 20]
     dvhsub2 = dvh_matrix[voitoplot,]
     myfig2 = pylab.plot(bin_center, dvhsub2.T, linewidth = 1.0, linestyle = '--')
     plt.grid(True)
@@ -928,7 +930,8 @@ def printresults(iterationNumber, myfolder):
     plt.ylabel('Fractional Volume')
     plt.title('VMAT Iteration:' + str(iterationNumber))
     #allNames.reverse()
-    plt.legend([allNames[i] for i in voitoplot])
+    #plt.legend([allNames[i] for i in voitoplot])
+    plt.legend(['PTV 1', 'PTV 2', 'Left Optic Nerve', 'Right Optic Nerve', 'Left Parotid', 'Right Parotid', 'Spinal Cord', 'Spinal Cord PRV'],prop={'size':9})
     plt.savefig(myfolder + 'DVH-at-Iteration-Subplot-for-debugging-greedyVMAT.png')
     plt.close()
 
@@ -1013,6 +1016,7 @@ def colGen(C, WholeCircle, initialApertures):
                         # Remove from caligraphicC and add to notinC
                         data.notinC.insertAngle(thisindex, data.pointtoAngle[thisindex])
                         data.caligraphicC.removeIndex(thisindex)
+                        penalizationweights[thisindex] = None
             print('Indapremoved this step:')
             print(IndApRemovedThisStep)
             if len(data.listIndexofAperturesRemovedEachStep) > 1:
@@ -1192,4 +1196,7 @@ after = time.time()
 print("The whole process took: " , after - before)
 print('The whole program took: '  + str(time.time() - start) + ' seconds to finish')
 print('You removed apertures using the removal criterion a total of: ', data.entryCounter, ' times')
+final_list = [float(item) for item in penalizationweights if item != 'None']
+mymean = sum(final_list)/ len(final_list)
+print('average complexity', mymean)
 print("You have graciously finished running this program")

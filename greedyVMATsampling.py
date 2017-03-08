@@ -311,7 +311,7 @@ os.chdir(readfolder)
 allFiles = glob.glob("*VOILIST.mat")
 allBeamInfos = glob.glob("*Couch0_BEAMINFO.mat")
 ## Will contain all VOI names
-allNames = sorted(allFiles) #Make sure it's sorted because it was not.
+allNames = sorted(allFiles)#Make sure it's sorted because it was not.
 allBeamInfoNames = sorted(allBeamInfos)
 ## How many structures of interest are included in this case.
 numStructs = len(allFiles)
@@ -921,6 +921,7 @@ def printresults(iterationNumber, myfolder):
     plt.close()
 
     voitoplot = [0, 18, 23, 17, 2, 8]
+    voitoplot = [19, 18, 11, 17, 2, 14]
     dvhsub2 = dvh_matrix[voitoplot,]
     myfig2 = pylab.plot(bin_center, dvhsub2.T, linewidth = 1.0, linestyle = '--')
     plt.grid(True)
@@ -928,6 +929,7 @@ def printresults(iterationNumber, myfolder):
     plt.ylabel('Fractional Volume')
     plt.title('VMAT Iteration:' + str(iterationNumber))
     #allNames.reverse()
+    allNames = ['Brainstem']
     plt.legend([allNames[i] for i in voitoplot])
     plt.savefig(myfolder + 'DVH-at-Iteration-Subplot-for-debugging-greedyVMAT.png')
     plt.close()

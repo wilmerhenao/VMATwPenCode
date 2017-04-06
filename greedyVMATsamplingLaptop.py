@@ -847,7 +847,20 @@ def PricingProblem(C, C2, C3, b, vmax, speedlim, N, M, bw):
     lallret = bestgroup[1]
     rallret = bestgroup[2]
     bestApertureIndex = bestgroup[3]
-    penalizationweights[bestApertureIndex] = pstar
+    # Calculate Kelly's aperture measure
+    l = lallret
+    r = rallret
+    Area = 0.0
+    Perimeter = r[0] - l[0] + np.sign(r[0] - l[0]) # First part of the perimeter plus first edge
+    for n in range(len(l)):
+        Area += 0.5 * (r[n] - l[n]) * 0.5
+    for n in range(1, len(l)):
+        Area += 0.5 * (r[n] - l[n]) * 0.5
+        Perimeter += np.sign(r[n] - l[n]) # Vertical part of the perimeter
+        Perimeter += np.abs(l[n] - l[n-1]) + np.abs(r[n] - r[n-1]) - 2 * np.maximum(0, l[n-1] - r[n]) - 2 * np.maximum(0, l[n] - r[n - 1])
+    Perimeter += r[len(r)-1] - l[len(l)-1] + np.sign(r[len(r)-1] - l[len(l)-1])
+    Kellymeasure = Perimeter / Area
+    penalizationweights[bestApertureIndex] = Kellymeasure
     for i in range(0, len(respool)):
         if(M != len(respool[i][1])):
             sys.exit("Length of left vector is less than 28")
@@ -886,7 +899,7 @@ def solveRMC(YU):
     return(res)
 
 # The next function prints DVH values
-def printresults(iterationNumber, myfolder):
+def printresults(iterationNumber, myfolder, Cvalue):
     numzvectors = 1
     maskValueFull = np.array([int(i) for i in data.fullMaskValue])
     print('Starting to Print Results')
@@ -921,18 +934,18 @@ def printresults(iterationNumber, myfolder):
     plt.savefig(myfolder + 'DVH-for-debugging-greedyVMAT.png')
     plt.close()
 
-    #voitoplot = [19, 18, 11, 17, 2, 19]
     voitoplot = [18, 7, 12, 13, 14, 15, 19, 20]
     dvhsub2 = dvh_matrix[voitoplot,]
     myfig2 = pylab.plot(bin_center, dvhsub2.T, linewidth = 1.0, linestyle = '--')
+    pylab.xlim([0, 120])
     plt.grid(True)
     plt.xlabel('Dose Gray')
     plt.ylabel('Fractional Volume')
-    plt.title('VMAT Iteration:' + str(iterationNumber))
+    plt.title('VMAT DVH Plot')
     #allNames.reverse()
     #plt.legend([allNames[i] for i in voitoplot])
     plt.legend(['PTV 1', 'PTV 2', 'Left Optic Nerve', 'Right Optic Nerve', 'Left Parotid', 'Right Parotid', 'Spinal Cord', 'Spinal Cord PRV'],prop={'size':9})
-    plt.savefig(myfolder + 'DVH-at-Iteration-Subplot-for-debugging-greedyVMAT.png')
+    plt.savefig(myfolder + 'DVHMAT' + str(Cvalue) + '.png')
     plt.close()
 
 def colGen(C, WholeCircle, initialApertures):
@@ -1047,7 +1060,7 @@ def colGen(C, WholeCircle, initialApertures):
                 data.notinC.insertAngle(i, data.pointtoAngle[i])
                 kappa.remove(i)
             # plotAperture(lm, rm, M, N, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/', plotcounter, bestApertureIndex)
-            printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics0/')
+            printresults(plotcounter, '/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/outputGraphics/', C)
             #Step 5 on Fei's paper. If necessary complete the treatment plan by identifying feasible apertures at control points c
             #notinC and denote the final set of fluence rates by yk
     plotApertures(C)
@@ -1060,7 +1073,7 @@ def colGen(C, WholeCircle, initialApertures):
     with open(PIK, "wb") as f:
         pickle.dump(datasave, f, pickle.HIGHEST_PROTOCOL)
     f.close()
-    return(pstar)
+    return(rmpres)
 
 ## This function returns the set of available AND open beamlets for the selected aperture (i).
 # The idea is to have everything ready and pre-calculated for the evaluation of the objective function in
@@ -1165,32 +1178,32 @@ def plotApertures(C):
 print('Preparation time took: ' + str(time.time() - start) + ' seconds')
 
 before = time.time()
-# Do the dirty work of calling the function and collect the results to be saved
-for iter in np.arange(0, 1, 1):
-    pstar = colGen(iter, WholeCircle, kappasize)
-    ## Reinitialize everything for the next iteration
-    data.objectiveValue = np.inf
-    data.currentDose = np.empty(1) # dose variable
-    data.currentIntensities = np.zeros(data.numbeams, dtype = float)
-    data.llist = []
-    data.rlist = []
-    data.rmpres = []
-    data.voxelgradient = []
-    data.aperturegradient = []
-    ## List of apertures not yet selected
-    data.notinC = apertureList()
-    ## List of apertures already selected
-    data.caligraphicC = apertureList()
-    data.openApertureMaps = []
-    data.diagmakers = []
-    data.strengths = []
-    for i in range(0, data.numbeams):
-        data.openApertureMaps.append([])
-        data.diagmakers.append([])
-        data.strengths.append([])
-    data.dZdK = 0.0
-    data.entryCounter = 0
-    data.listIndexofAperturesRemovedEachStep = []
+# Do the dirty work of calling the function and collect the results to be save
+CValue = int(sys.argv[1])
+rmpres = colGen(CValue, WholeCircle, kappasize)
+## Reinitialize everything for the next iteration
+data.objectiveValue = np.inf
+data.currentDose = np.empty(1) # dose variable
+data.currentIntensities = np.zeros(data.numbeams, dtype = float)
+data.llist = []
+data.rlist = []
+data.rmpres = []
+data.voxelgradient = []
+data.aperturegradient = []
+## List of apertures not yet selected
+data.notinC = apertureList()
+## List of apertures already selected
+data.caligraphicC = apertureList()
+data.openApertureMaps = []
+data.diagmakers = []
+data.strengths = []
+for i in range(0, data.numbeams):
+    data.openApertureMaps.append([])
+    data.diagmakers.append([])
+    data.strengths.append([])
+data.dZdK = 0.0
+data.entryCounter = 0
+data.listIndexofAperturesRemovedEachStep = []
 after = time.time()
 
 print("The whole process took: " , after - before)
@@ -1200,3 +1213,7 @@ final_list = [float(item) for item in penalizationweights if item != 'None']
 mymean = sum(final_list)/ len(final_list)
 print('average complexity', mymean)
 print("You have graciously finished running this program")
+# write to source
+f = open('/home/wilmer/Dropbox/Research/VMAT/VMATwPenCode/results.txt', 'a')
+f.write('\n cval;' + str(CValue) + ';time;' + str(after - before) + ';avgpenal;' + str(mymean) + ';optfun;' + str(rmpres.fun))
+f.close()
